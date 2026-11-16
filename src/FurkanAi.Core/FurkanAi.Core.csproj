@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>FurkanAi.Core</RootNamespace>
+    <!-- Platformdan bağımsız iş mantığı: sağlayıcı istemcileri (OpenAI, Gemini, Claude, OpenAI uyumlu), SSE akışı,
+         Markdown → güvenli HTML, dosya metni çıkarma (TXT/DOCX/PDF), araçlar, hafıza, dışa aktarma. Harici paket yok. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FurkanAi.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,250 @@
+@page "/gorsel"
+@inject SaglayiciServisi Sag
+@inject SohbetServisi Servis
+@inject SohbetDeposu Depo
+@inject Ayarlar Ayar
+@inject Arayuz Ui
+@inject NavigationManager Nav
+
+<UstBar Baslik="Görsel" AltBaslik="Üret · Analiz et · Galeri" Geri="true" />
+
+<div class="icerik">
+    <Sekmeler Secenekler="SekmeListesi" Secili="@_sekme" SeciliChanged="SekmeDegisti" Sinif="tam" />
+
+    @if (_sekme == "uret")
+    {
+        <div class="kart" style="margin-top:12px">
+            <div class="alan"><label>Sağlayıcı</label>
+                <div class="cipler">
+                    @foreach (var t in new[] { SaglayiciTuru.OpenAI, SaglayiciTuru.Gemini })
+                    {
+                        var tur = t;
+                        <button class="cip @(_tur == tur ? "secili" : "")" @onclick="() => TurSec(tur)">@ModelKaydi.Tanim(tur).Ad</button>
+                    }
+                </div>
+            </div>
+            <div class="alan"><label>Model</label>
+                <input class="girdi mono" list="gorsel-modeller" @bind="_model" />
+                <datalist id="gorsel-modeller">
+                    @foreach (var m in ModelKaydi.GorselModelleri(_tur))
+                    {
+                        <option value="@m.Id">@m.Ad</option>
+                    }
+                </datalist>
+            </div>
+            @if (_tur == SaglayiciTuru.OpenAI)
+            {
+                <div class="alan"><label>Boyut</label>
+                    <Sekmeler Secenekler="Boyutlar" Secili="@Ayar.GorselBoyut" SeciliChanged="v => Ayar.GorselBoyut = v" />
+                </div>
+            }
+            <div class="alan"><label>Ne çizilsin?</label>
+                <textarea class="girdi" maxlength="4000" @bind="_istem" @bind:event="oninput" placeholder="ör. Gün batımında İstanbul Boğazı, neon renkler, sinematik ışık, dijital illüstrasyon"></textarea>
+            </div>
+            @if (_neden != null)
+            {
+                <div class="uyari-kutu">@_neden <a href="saglayicilar">Ayarla →</a></div>
+            }
+            <button class="dugme tam" disabled="@(_uretiliyor || string.IsNullOrWhiteSpace(_istem))" @onclick="Uret">
+                @if (_uretiliyor)
+                {
+                    <span class="donen"></span>
+                    <span>Üretiliyor… (@((int)(DateTime.Now - _baslangic).TotalSeconds) sn)</span>
+                }
+                else
+                {
+                    <Ikon Ad="yildizlar" Boyut="18" />
+                    <span>Görsel üret</span>
+                }
+            </button>
+            @if (_uretiliyor)
+            {
+                <button class="dugme hayalet tam" @onclick="() => _iptal?.Cancel()">İptal</button>
+            }
+            <p class="kucuk soluk" style="margin-bottom:0">Görsel üretimi sağlayıcı hesabınızdan ücretlendirilebilir. Üretilen görseller yalnızca bu cihazda saklanır.</p>
+        </div>
+
+        if (_sonuc != null)
+        {
+            <div class="kart" style="margin-top:12px">
+                <img src="@GorselUrl(_sonuc)" alt="Üretilen görsel" style="width:100%;border-radius:16px;display:block" />
+                @if (_aciklama != null)
+                {
+                    <p class="kucuk soluk">@_aciklama</p>
+                }
+                <div class="izgara-2" style="margin-top:10px">
+                    <button class="dugme ikincil" @onclick="() => Paylas(_sonuc)"><Ikon Ad="paylas" Boyut="18" /> Paylaş</button>
+                    <button class="dugme" @onclick="() => Kaydet(_sonuc)"><Ikon Ad="indir" Boyut="18" /> Kaydet</button>
+                </div>
+            </div>
+        }
+    }
+    else if (_sekme == "analiz")
+    {
+        <div class="kart" style="margin-top:12px">
+            @if (_analizGorseli == null)
+            {
+                <button class="dugme ikincil tam" @onclick="() => _ekAcik = true"><Ikon Ad="resim" Boyut="18" /> Görsel seç veya fotoğraf çek</button>
+            }
+            else
+            {
+                <img src="@($"data:{_analizGorseli.Mime};base64,{Convert.ToBase64String(_analizGorseli.Veri)}")" alt="" style="width:100%;max-height:320px;object-fit:contain;border-radius:16px;background:var(--cam-2)" />
+                <button class="dugme hayalet kucuk" @onclick="() => _analizGorseli = null">Değiştir</button>
+            }
+            <div class="alan" style="margin-top:12px"><label>Sorunuz</label>
+                <div class="cipler" style="flex-wrap:wrap;margin-bottom:8px">
+                    @foreach (var h in HazirSorular)
+                    {
+                        var soru = h;
+                        <button class="cip" @onclick="() => _soru = soru">@soru</button>
+                    }
+                </div>
+                <textarea class="girdi" @bind="_soru" @bind:event="oninput" maxlength="4000"></textarea>
+            </div>
+            <button class="dugme tam" disabled="@(_analizGorseli == null || string.IsNullOrWhiteSpace(_soru))" @onclick="Analiz"><Ikon Ad="yildizlar" Boyut="18" /> Analiz et</button>
+            <p class="kucuk soluk" style="margin-bottom:0">Sohbet modeli kullanılır: @ModelKaydi.Tanim(Ayar.AktifSaglayici).Ad · @Ayar.Model(Ayar.AktifSaglayici). Sonuç sohbet olarak açılır.</p>
+        </div>
+    }
+    else
+    {
+        if (_galeri.Count == 0)
+        {
+            <Bos Simge="resim" Baslik="Galeri boş" Metin="Ürettiğiniz görseller burada görünür." />
+        }
+        else
+        {
+            <div class="galeri" style="margin-top:12px">
+                @foreach (var g in _galeri)
+                {
+                    var gorsel = g;
+                    <img src="@GorselUrl(gorsel)" alt="@gorsel.Istem" loading="lazy" @onclick="() => _seciliGorsel = gorsel" />
+                }
+            </div>
+        }
+    }
+</div>
+
+<EkSecici @bind-Acik="_ekAcik" SadeceGorsel="true" Eklendi="e => _analizGorseli = e" />
+
+<AltSayfa Acik="_seciliGorsel != null" AcikChanged="v => { if (!v) _seciliGorsel = null; }" Baslik="Görsel">
+    @if (_seciliGorsel != null)
+    {
+        <img src="@GorselUrl(_seciliGorsel)" alt="" style="width:100%;border-radius:16px" />
+        <p class="kucuk" style="margin:10px 0 4px">@_seciliGorsel.Istem</p>
+        <p class="kucuk soluk">@_seciliGorsel.Saglayici · @_seciliGorsel.Model · @_seciliGorsel.Tarih.ToLocalTime().ToString("dd MMM yyyy HH:mm", S.Tr)</p>
+        <div class="izgara-3">
+            <button class="dugme ikincil kucuk" @onclick="() => Paylas(_seciliGorsel)">Paylaş</button>
+            <button class="dugme ikincil kucuk" @onclick="() => Kaydet(_seciliGorsel)">Kaydet</button>
+            <button class="dugme tehlike kucuk" @onclick="Sil">Sil</button>
+        </div>
+    }
+</AltSayfa>
+
+@code {
+    private static readonly IReadOnlyList<(string, string)> SekmeListesi = new[] { ("uret", "Üret"), ("analiz", "Analiz"), ("galeri", "Galeri") };
+    private static readonly IReadOnlyList<(string, string)> Boyutlar = new[] { ("1024x1024", "Kare"), ("1024x1536", "Dikey"), ("1536x1024", "Yatay") };
+    private static readonly string[] HazirSorular = { "Bu görselde ne var?", "Metni çıkar (OCR)", "Bu bir bitki mi, türü ne?", "Grafiği yorumla", "Hataları bul" };
+    private string _sekme = "uret", _istem = "", _model = "", _soru = "Bu görselde ne var?";
+    private SaglayiciTuru _tur;
+    private string? _neden, _aciklama;
+    private bool _uretiliyor, _ekAcik;
+    private DateTime _baslangic;
+    private CancellationTokenSource? _iptal;
+    private GorselKaydi? _sonuc, _seciliGorsel;
+    private EkIcerik? _analizGorseli;
+    private List<GorselKaydi> _galeri = new();
+    private readonly Dictionary<long, string> _urlOnbellek = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _tur = Ayar.GorselSaglayici is SaglayiciTuru.OpenAI or SaglayiciTuru.Gemini ? Ayar.GorselSaglayici : SaglayiciTuru.OpenAI;
+        _model = Ayar.GorselModel(_tur);
+        _neden = await Sag.HazirDegilNedeni(_tur) is string n && n.Contains("anahtar") ? n : null;
+    }
+
+    private async Task SekmeDegisti(string s)
+    {
+        _sekme = s;
+        if (s == "galeri") _galeri = (await Depo.Gorseller()).Take(120).ToList();
+    }
+
+    private async Task TurSec(SaglayiciTuru t)
+    {
+        _tur = t; _model = Ayar.GorselModel(t); Ayar.GorselSaglayici = t;
+        _neden = await Sag.HazirDegilNedeni(t) is string n && n.Contains("anahtar") ? n : null;
+    }
+
+    private string GorselUrl(GorselKaydi g)
+    {
+        if (_urlOnbellek.TryGetValue(g.Id, out var u)) return u;
+        try
+        {
+            var yol = Path.Combine(Veritabani.GorselKlasoru, Path.GetFileName(g.Dosya));
+            u = $"data:{g.Mime};base64,{Convert.ToBase64String(File.ReadAllBytes(yol))}";
+        }
+        catch { u = "img/logo.svg"; }
+        return _urlOnbellek[g.Id] = u;
+    }
+
+    private async Task Uret()
+    {
+        if (await Sag.HazirDegilNedeni(_tur) is string n && n.Contains("anahtar")) { _neden = n; return; }
+        if (!SaglayiciServisi.InternetVar) { Ui.Goster("İnternet bağlantısı yok.", "hata"); return; }
+        _uretiliyor = true; _baslangic = DateTime.Now; _sonuc = null; _aciklama = null;
+        _iptal = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        using var sayac = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        var sayacGorevi = Task.Run(async () => { while (await sayac.WaitForNextTickAsync()) await InvokeAsync(StateHasChanged); });
+        try
+        {
+            Ayar.GorselModelAyarla(_tur, _model);
+            var istemci = await Sag.Istemci(_tur);
+            var g = await istemci.GorselUret(_istem.Trim(), _model.Trim(), Ayar.GorselBoyut, _iptal.Token);
+            var uz = g.Mime.Contains("jpeg") ? ".jpg" : g.Mime.Contains("webp") ? ".webp" : ".png";
+            var dosya = Guid.NewGuid().ToString("N") + uz;
+            await File.WriteAllBytesAsync(Path.Combine(Veritabani.GorselKlasoru, dosya), g.Veri);
+            var kayit = new GorselKaydi { Istem = _istem.Trim(), Saglayici = ModelKaydi.Tanim(_tur).Ad, Model = _model.Trim(), Dosya = dosya, Mime = g.Mime };
+            await Depo.GorselEkle(kayit);
+            _sonuc = kayit; _aciklama = g.Aciklama;
+        }
+        catch (OperationCanceledException) { Ui.Goster("Görsel üretimi iptal edildi veya zaman aşımına uğradı.", "bilgi"); }
+        catch (Exception e) { Ui.Goster(HataMesaji.Olustur(e), "hata"); }
+        finally { _uretiliyor = false; sayac.Dispose(); }
+    }
+
+    private async Task Paylas(GorselKaydi g)
+    {
+        var veri = await File.ReadAllBytesAsync(Path.Combine(Veritabani.GorselKlasoru, Path.GetFileName(g.Dosya)));
+        await Disari.Paylas(veri, "FURKANAI_" + Path.GetFileName(g.Dosya), g.Mime);
+    }
+
+    private async Task Kaydet(GorselKaydi g)
+    {
+        var veri = await File.ReadAllBytesAsync(Path.Combine(Veritabani.GorselKlasoru, Path.GetFileName(g.Dosya)));
+        if (await Disari.Kaydet(veri, "FURKANAI_" + S.DosyaAdi(g.Istem, 30) + Path.GetExtension(g.Dosya), g.Mime)) Ui.Goster("Görsel kaydedildi ✅", "basari");
+    }
+
+    private async Task Sil()
+    {
+        if (_seciliGorsel == null || !await Ui.Onayla("Görsel silinsin mi?", "Bu görsel cihazdan kalıcı olarak silinir.", "Sil", tehlikeli: true)) return;
+        await Depo.GorselSil(_seciliGorsel);
+        _galeri.Remove(_seciliGorsel);
+        _seciliGorsel = null;
+    }
+
+    private async Task Analiz()
+    {
+        if (_analizGorseli == null) return;
+        var t = Ayar.AktifSaglayici;
+        if (await Sag.HazirDegilNedeni(t) is string neden) { Ui.Goster(neden + " Ayarlar › Sağlayıcılar.", "hata"); return; }
+        if (!ModelKaydi.YetenekTahmin(t, Ayar.Model(t)).HasFlag(Yetenek.GorselAnaliz) &&
+            !await Ui.Onayla("Model görseli desteklemiyor olabilir", $"{Ayar.Model(t)} görsel analizi desteklemiyor görünüyor. Yine de denensin mi?", "Dene")) return;
+        if (Ayar.DosyaOnayiSor && !await Ui.Onayla("Görsel gönderilsin mi?", $"Görsel analiz için {ModelKaydi.Tanim(t).Ad} sunucularına gönderilecek.", "Gönder")) return;
+        try
+        {
+            var s = await Servis.YeniSohbet();
+            await Servis.Gonder(s, _soru.Trim(), new[] { _analizGorseli });
+            Nav.NavigateTo("sohbet/" + s.Id);
+        }
+        catch (Exception e) { Ui.Goster(HataMesaji.Olustur(e), "hata"); }
+    }
+}

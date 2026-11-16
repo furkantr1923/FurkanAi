@@ -1,0 +1,13 @@
+@page "/araclar"
+
+<UstBar Baslik="Araçlar" AltBaslik="@($"{AracKatalogu.Hepsi.Count} hazır yapay zekâ aracı")" />
+
+<div class="icerik">
+    <div class="izgara-2">
+        @foreach (var a in AracKatalogu.Hepsi)
+        {
+            <a class="eylem-karo" href="@($"arac/{a.Kod}")"><span class="simge"><Ikon Ad="@a.Ikon" /></span><b>@a.Ad</b><small>@a.Aciklama</small></a>
+        }
+        <a class="eylem-karo" href="gorsel"><span class="simge"><Ikon Ad="resim" /></span><b>Görsel üret</b><small>Metinden görsel (OpenAI/Gemini)</small></a>
+    </div>
+</div>

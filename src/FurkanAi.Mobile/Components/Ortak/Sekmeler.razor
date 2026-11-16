@@ -1,0 +1,15 @@
+<div class="sekmeler @Sinif">
+    @foreach (var (deger, etiket) in Secenekler)
+    {
+        var d = deger;
+        <button class="@(d == Secili ? "secili" : "")" @onclick="() => Sec(d)">@etiket</button>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<(string Deger, string Etiket)> Secenekler { get; set; } = Array.Empty<(string, string)>();
+    [Parameter] public string Secili { get; set; } = "";
+    [Parameter] public EventCallback<string> SeciliChanged { get; set; }
+    [Parameter] public string? Sinif { get; set; }
+    private async Task Sec(string d) { if (d == Secili) return; Secili = d; await SeciliChanged.InvokeAsync(d); }
+}

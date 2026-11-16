@@ -1,0 +1,24 @@
+@inject NavigationManager Nav
+<div class="satir" style="cursor:pointer" @onclick="@(() => Nav.NavigateTo($"sohbet/{Sohbet.Id}"))">
+    <span class="tur-simge"><Ikon Ad="@(Sohbet.AracKodu != null && AracKatalogu.Bul(Sohbet.AracKodu) is { } a ? a.Ikon : "sohbet")" /></span>
+    <div class="buyu" style="min-width:0">
+        <div class="esnek" style="gap:6px">
+            <span class="baslik kes">@Sohbet.Baslik</span>
+            @if (Sohbet.Sabit)
+            {
+                <Ikon Ad="sabitle" Boyut="13" />
+            }
+        </div>
+        <div class="alt kes">@(Sohbet.Onizleme ?? "Boş sohbet")</div>
+        <div class="alt kes" style="font-size:11px">@Sohbet.Guncelleme.ToLocalTime().ToString("dd MMM HH:mm", S.Tr) · @Sohbet.MesajSayisi mesaj · @Sohbet.Model</div>
+    </div>
+    @if (Sag != null)
+    {
+        <span @onclick:stopPropagation="true">@Sag</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Sohbet Sohbet { get; set; } = default!;
+    [Parameter] public RenderFragment? Sag { get; set; }
+}

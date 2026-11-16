@@ -1,0 +1,91 @@
+@page "/arac/{Kod}"
+@inject SohbetServisi Servis
+@inject SaglayiciServisi Sag
+@inject Ayarlar Ayar
+@inject Arayuz Ui
+@inject NavigationManager Nav
+
+<UstBar Baslik="@(_arac?.Ad ?? "Araç")" AltBaslik="@_arac?.Aciklama" Geri="true" />
+
+<div class="icerik">
+    @if (_arac == null)
+    {
+        <Bos Simge="uyari" Baslik="Araç bulunamadı"><a class="dugme" href="araclar">Araçlar</a></Bos>
+    }
+    else
+    {
+        <div class="kart">
+            @foreach (var o in _arac.Secenekler)
+            {
+                var secenek = o;
+                <div class="alan"><label>@secenek.Etiket</label>
+                    <div class="cipler" style="flex-wrap:wrap">
+                        @foreach (var d in secenek.Degerler)
+                        {
+                            var deger = d;
+                            <button class="cip @(_secimler.GetValueOrDefault(secenek.Kod) == deger ? "secili" : "")" @onclick="() => _secimler[secenek.Kod] = deger">@deger</button>
+                        }
+                    </div>
+                </div>
+            }
+            <div class="alan"><label>@_arac.GirdiEtiketi</label>
+                <textarea class="girdi" style="min-height:150px" @bind="_girdi" @bind:event="oninput" placeholder="@_arac.Ornek" maxlength="30000"></textarea>
+                <small class="soluk">@_girdi.Length karakter</small>
+            </div>
+            @if (_arac.DosyaKabulEder)
+            {
+                <div class="esnek sar" style="gap:6px;margin-bottom:10px">
+                    @foreach (var e in _ekler)
+                    {
+                        var ek = e;
+                        <span class="ek-cip" style="background:var(--cam-2)"><Ikon Ad="dosya" Boyut="14" /><span>@ek.Ad</span>
+                            <button style="border:0;background:none;color:inherit;padding:0 0 0 4px" @onclick="() => _ekler.Remove(ek)"><Ikon Ad="kapat" Boyut="14" /></button></span>
+                    }
+                    <button class="dugme ikincil kucuk" @onclick="() => _ekAcik = true"><Ikon Ad="ek" Boyut="14" /> Dosya ekle</button>
+                </div>
+            }
+            <button class="dugme tam" disabled="@(_calisiyor || string.IsNullOrWhiteSpace(_girdi) && _ekler.Count == 0)" @onclick="Calistir">
+                <Ikon Ad="yildizlar" Boyut="18" /> Çalıştır
+            </button>
+            <button class="dugme hayalet tam" style="margin-top:4px" @onclick="() => _girdi = _arac.Ornek">Örnekle dene</button>
+        </div>
+        <p class="kucuk soluk" style="margin:12px 4px">Sonuç yeni bir sohbet olarak açılır; ardından sorular sorarak devam edebilirsiniz. Kullanılan model: @ModelKaydi.Tanim(Ayar.AktifSaglayici).Ad · @Ayar.Model(Ayar.AktifSaglayici)</p>
+    }
+</div>
+
+<EkSecici @bind-Acik="_ekAcik" Eklendi="e => _ekler.Add(e)" />
+
+@code {
+    [Parameter] public string Kod { get; set; } = "";
+    private AracTanimi? _arac;
+    private readonly Dictionary<string, string> _secimler = new();
+    private readonly List<EkIcerik> _ekler = new();
+    private string _girdi = "";
+    private bool _ekAcik, _calisiyor;
+
+    protected override void OnParametersSet()
+    {
+        _arac = AracKatalogu.Bul(Kod);
+        _secimler.Clear();
+        if (_arac != null) foreach (var o in _arac.Secenekler) _secimler[o.Kod] = o.Degerler[0];
+    }
+
+    private async Task Calistir()
+    {
+        if (_arac == null) return;
+        var t = Ayar.AktifSaglayici;
+        if (await Sag.HazirDegilNedeni(t) is string neden) { Ui.Goster(neden + " Ayarlar › Sağlayıcılar.", "hata"); return; }
+        if (!Sag.BaglantiYeterli(t)) { Ui.Goster("İnternet bağlantısı yok.", "hata"); return; }
+        if (_ekler.Count > 0 && Ayar.DosyaOnayiSor &&
+            !await Ui.Onayla("Dosyalar gönderilsin mi?", $"{_ekler.Count} dosya analiz için {ModelKaydi.Tanim(t).Ad} sunucularına gönderilecek.", "Gönder")) return;
+        _calisiyor = true;
+        try
+        {
+            var s = await Servis.YeniSohbet(_arac.Kod, _arac.Istem(_secimler));
+            await Servis.Gonder(s, _girdi, _ekler.ToList());
+            Nav.NavigateTo("sohbet/" + s.Id);
+        }
+        catch (Exception e) { Ui.Goster(HataMesaji.Olustur(e), "hata"); }
+        finally { _calisiyor = false; }
+    }
+}

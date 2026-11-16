@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>FURKAN AI</title>
+    <base href="/" />
+    <link rel="stylesheet" href="css/fa.css" />
+</head>
+<body data-theme="koyu" data-vurgu="mor">
+    <div class="arka-plan"><i></i><i></i><i></i></div>
+    <div id="app">
+        <div class="acilis">
+            <div class="logo-kap"><img src="img/logo.svg" alt="" /></div>
+            <div class="marka">FURKAN AI</div>
+            <div class="slogan">Sor · Üret · Öğren</div>
+        </div>
+    </div>
+    <div id="blazor-error-ui">
+        Beklenmeyen bir hata oluştu. <a href="" class="reload">Yeniden yükle</a> <span class="dismiss">✕</span>
+    </div>
+    <script>
+        try {
+            var t = localStorage.getItem("fa-tema"), v = localStorage.getItem("fa-vurgu");
+            if (t) document.body.setAttribute("data-theme", t);
+            if (v) document.body.setAttribute("data-vurgu", v);
+        } catch (e) { }
+    </script>
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
+    <script src="js/fa.js"></script>
+</body>
+</html>

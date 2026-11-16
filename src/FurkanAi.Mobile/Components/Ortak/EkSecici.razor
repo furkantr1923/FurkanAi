@@ -1,0 +1,57 @@
+@inject Arayuz Ui
+@* Ek seçme alt sayfası: galeri, kamera, dosya. Görseller sağlayıcı sınırlarına göre küçültülür. *@
+<AltSayfa Acik="Acik" AcikChanged="AcikChanged" Baslik="Ek ekle">
+    <div class="izgara-3">
+        <button class="kisayol" @onclick="Galeri"><span class="simge"><Ikon Ad="resim" Boyut="20" /></span>Galeri</button>
+        <button class="kisayol" @onclick="Kamera"><span class="simge"><Ikon Ad="kamera" Boyut="20" /></span>Kamera</button>
+        <button class="kisayol" @onclick="Dosya"><span class="simge"><Ikon Ad="dosya" Boyut="20" /></span>Dosya</button>
+    </div>
+    <p class="kucuk soluk" style="margin-top:12px">Desteklenenler: JPG/PNG/WEBP görseller (en fazla 5 MB, gerekirse küçültülür), PDF, DOCX, TXT ve diğer metin dosyaları (en fazla 20 MB).</p>
+</AltSayfa>
+
+@code {
+    [Parameter] public bool Acik { get; set; }
+    [Parameter] public EventCallback<bool> AcikChanged { get; set; }
+    [Parameter] public EventCallback<EkIcerik> Eklendi { get; set; }
+    [Parameter] public bool SadeceGorsel { get; set; }
+
+    private async Task Galeri() => await Isle(() => MediaPicker.Default.PickPhotoAsync());
+    private async Task Kamera()
+    {
+        if (!MediaPicker.Default.IsCaptureSupported) { Ui.Goster("Bu cihazda kamera kullanılamıyor.", "hata"); return; }
+        await Isle(() => MediaPicker.Default.CapturePhotoAsync());
+    }
+
+    private async Task Dosya()
+    {
+        if (SadeceGorsel) { await Isle(() => FilePicker.Default.PickAsync(new PickOptions { FileTypes = FilePickerFileType.Images })); return; }
+        await Isle(() => FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "Dosya seçin" }));
+    }
+
+    private async Task Isle(Func<Task<FileResult?>> sec)
+    {
+        try
+        {
+            var f = await sec();
+            if (f == null) return;
+            await using var s = await f.OpenReadAsync();
+            if (s.CanSeek && s.Length > DosyaOkuyucu.AzamiBoyut) throw new InvalidDataException($"Dosya çok büyük. En fazla {S.Boyut(DosyaOkuyucu.AzamiBoyut)}.");
+            using var ms = new MemoryStream();
+            await s.CopyToAsync(ms);
+            var veri = ms.ToArray();
+            var mime = string.IsNullOrEmpty(f.ContentType) ? DosyaOkuyucu.MimeBul(f.FileName) : f.ContentType;
+            if (DosyaOkuyucu.TurBul(mime, f.FileName) == EkTuru.Gorsel)
+                (veri, mime) = await Task.Run(() => AndroidGorsel.Kucult(veri, mime));
+            else if (SadeceGorsel) throw new InvalidDataException("Lütfen bir görsel seçin.");
+            var ad = f.FileName;
+            if (mime == "image/jpeg" && !ad.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) && !ad.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)) ad = Path.ChangeExtension(ad, ".jpg");
+            var ek = await Task.Run(() => DosyaOkuyucu.Hazirla(ad, mime, veri));
+            if (ek.Tur is EkTuru.Pdf && string.IsNullOrEmpty(ek.Metin))
+                Ui.Goster("Bu PDF'ten metin çıkarılamadı (taranmış olabilir). OpenAI, Gemini ve Claude PDF'i doğrudan okuyabilir; OpenAI uyumlu sunucular okuyamaz.", "bilgi");
+            await Eklendi.InvokeAsync(ek);
+            await AcikChanged.InvokeAsync(false);
+        }
+        catch (PermissionException) { Ui.Goster("İzin verilmedi. Ayarlar › Uygulama izinleri'nden izin verebilirsiniz.", "hata"); }
+        catch (Exception e) { Ui.Goster(HataMesaji.Olustur(e), "hata"); }
+    }
+}

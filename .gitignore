@@ -1,0 +1,38 @@
+# Derleme çıktıları
+bin/
+obj/
+publish/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Visual Studio / Rider
+.vs/
+*.user
+*.suo
+*.userprefs
+.idea/
+*.DotSettings.user
+
+# Gizli ayarlar — ASLA Git'e eklemeyin
+.env
+appsettings.*.local.json
+**/Properties/PublishProfiles/*.pubxml.user
+
+# Yedekler ve geçici dosyalar
+yedekler/
+*.sql
+TestResults/
+*.log
+.DS_Store
+Thumbs.db
+
+# FURKAN AI dışa aktarımları (kişisel sohbet içerir)
+FURKANAI_*.json
+FURKANAI_*.zip
+
+# API anahtarı içerebilecek yerel notlar — ASLA eklemeyin
+*anahtar*.txt
+*apikey*
+*.secrets.json

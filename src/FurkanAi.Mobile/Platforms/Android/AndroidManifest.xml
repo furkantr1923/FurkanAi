@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- allowBackup=false: sohbetler Google bulut yedeğine gitmez (uygulama kendi dışa aktarımını sunar).
+         usesCleartextTraffic=true: yalnızca yerel ağdaki OpenAI uyumlu sunucular (Ollama/LM Studio, http://192.168.x.x) için gerekir;
+         OpenAI, Gemini ve Claude her zaman HTTPS kullanır. -->
+    <application android:allowBackup="false" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round"
+                 android:supportsRtl="true" android:label="FURKAN AI" android:usesCleartextTraffic="true">
+    </application>
+
+    <!-- Yapay zekâ sağlayıcılarına bağlanmak için -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Mikrofon: yalnızca "OpenAI ile sesten yazıya" seçiliyken kayıt sırasında istenir -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- Uzun yanıt arka planda tamamlanınca bildirim (Android 13+ izin ister) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Parmak izi / yüz ile kilit açma -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Kameradan fotoğraf ekleme: yalnızca "Kamera" seçildiğinde istenir -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+
+    <queries>
+        <intent><action android:name="android.speech.RecognitionService" /></intent>
+        <intent><action android:name="android.speech.action.RECOGNIZE_SPEECH" /></intent>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="https" /></intent>
+        <intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent>
+    </queries>
+</manifest>

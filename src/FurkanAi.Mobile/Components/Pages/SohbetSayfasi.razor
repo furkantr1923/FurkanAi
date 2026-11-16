@@ -1,0 +1,483 @@
+@page "/sohbet/{Id:long}"
+@implements IDisposable
+@inject SohbetServisi Servis
+@inject SohbetDeposu Depo
+@inject SaglayiciServisi Sag
+@inject SesServisi Ses
+@inject Ayarlar Ayar
+@inject Arayuz Ui
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+
+<UstBar Baslik="@(_sohbet?.Baslik ?? "Yeni sohbet")" Geri="true">
+    <Sag>
+        <button class="ust-dugme" @onclick="() => _menuAcik = true" aria-label="Sohbet menüsü"><Ikon Ad="filtre" /></button>
+    </Sag>
+</UstBar>
+
+<div class="icerik">
+    <div class="ortala" style="margin:-4px 0 10px">
+        <button class="model-cip @(_hazirDegil != null ? "uyari" : "")" @onclick="() => _modelAcik = true">
+            <i></i><span class="kes">@ModelKaydi.Tanim(_tur).Ad · @_model</span><Ikon Ad="asagi" Boyut="14" />
+        </button>
+        @if (!_ayarKaydet)
+        {
+            <div class="kucuk soluk" style="margin-top:6px">🕶️ Geçmiş kaydı kapalı: bu sohbet uygulama kapanınca silinir.</div>
+        }
+    </div>
+
+    @if (_yukleniyor)
+    {
+        <Iskelet Adet="3" Yukseklik="80" />
+    }
+    else if (_mesajlar.Count == 0 && _akis == null)
+    {
+        <div class="ortala" style="padding:18px 0 10px">
+            <img src="img/logo.svg" width="64" height="64" alt="" style="filter:drop-shadow(0 0 20px rgba(139,92,255,.5))" />
+            <h2 style="margin:10px 0 4px">Size nasıl yardımcı olabilirim?</h2>
+            <p class="soluk kucuk">Bir soru yazın, dosya veya görsel ekleyin ya da mikrofonla konuşun.</p>
+        </div>
+        if (_hazirDegil != null)
+        {
+            <div class="uyari-kutu">@_hazirDegil <a href="saglayicilar">Sağlayıcıyı ayarla →</a></div>
+        }
+        <div class="oneri-izgara">
+            @foreach (var (baslik, alt) in Oneriler)
+            {
+                var b = baslik; var a = alt;
+                <button class="oneri" @onclick="@(() => OneriSec(b + " " + a))">@b<small>@a</small></button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="mesajlar">
+            @foreach (var m in _mesajlar)
+            {
+                var mesaj = m;
+                if (mesaj.RolDegeri == Rol.Kullanici)
+                {
+                    <div class="balon kullanici" @key="mesaj.Id">
+                        @if (mesaj.Ekler.Count > 0)
+                        {
+                            <div class="ekler">
+                                @foreach (var e in mesaj.Ekler)
+                                {
+                                    <span class="ek-cip"><Ikon Ad="@EkIkon(e.Mime, e.Ad)" Boyut="14" /><span>@e.Ad</span></span>
+                                }
+                            </div>
+                        }
+                        @mesaj.Metin
+                    </div>
+                    <div class="balon-eylemler" style="align-self:flex-end;margin-top:-10px">
+                        <button @onclick="() => Kopyala(mesaj.Metin)" aria-label="Kopyala"><Ikon Ad="kopyala" Boyut="16" /></button>
+                        <button @onclick="() => Duzenle(mesaj)" aria-label="Düzenle"><Ikon Ad="kalem" Boyut="16" /></button>
+                    </div>
+                }
+                else
+                {
+                    <div class="balon asistan @(mesaj.Hata ? "hata" : "")" @key="mesaj.Id">
+                        <div class="ust-bilgi"><span class="avatar"><Ikon Ad="yildizlar" Boyut="12" /></span>FURKAN AI · @(mesaj.Model ?? "")@(mesaj.Yarim ? " · yarım kaldı" : "")</div>
+                        @if (mesaj.Hata)
+                        {
+                            <div>@mesaj.Metin</div>
+                        }
+                        else
+                        {
+                            <div class="md">@((MarkupString)Html(mesaj))</div>
+                        }
+                        <div class="balon-eylemler">
+                            @if (!mesaj.Hata)
+                            {
+                                <button @onclick="() => Kopyala(mesaj.Metin)" aria-label="Kopyala"><Ikon Ad="kopyala" Boyut="16" /></button>
+                                <button @onclick="() => Disari.MetinPaylas(mesaj.Metin)" aria-label="Paylaş"><Ikon Ad="paylas" Boyut="16" /></button>
+                                <button class="@(Ses.OkunanMesaj == mesaj.Id ? "aktif" : "")" @onclick="() => SesliOku(mesaj)" aria-label="Sesli oku"><Ikon Ad="@(Ses.OkunanMesaj == mesaj.Id ? "durdur" : "ses")" Boyut="16" /></button>
+                                <button @onclick="() => HafizayaEkle(mesaj.Metin)" aria-label="Hafızaya ekle"><Ikon Ad="beyin" Boyut="16" /></button>
+                            }
+                            @if (mesaj == _mesajlar[^1] && _akis == null)
+                            {
+                                <button @onclick="YenidenUret" aria-label="Yeniden üret"><Ikon Ad="yeniden" Boyut="16" /></button>
+                            }
+                            <button @onclick="() => MesajSil(mesaj)" aria-label="Sil"><Ikon Ad="cop" Boyut="16" /></button>
+                        </div>
+                    </div>
+                }
+            }
+            @if (_akis != null)
+            {
+                <div class="balon asistan">
+                    <div class="ust-bilgi"><span class="avatar"><Ikon Ad="yildizlar" Boyut="12" /></span>FURKAN AI · @_model · yazıyor…</div>
+                    @if (_akis.Metin.Length == 0)
+                    {
+                        <div class="yaziyor"><i></i><i></i><i></i></div>
+                    }
+                    else
+                    {
+                        <div class="md imlec">@((MarkupString)MarkdownCizici.Html(_akis.Metin.ToString()))</div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<div class="giris-cubugu">
+    @if (_bekleyenEkler.Count > 0)
+    {
+        <div class="bekleyen-ekler">
+            @foreach (var e in _bekleyenEkler)
+            {
+                var ek = e;
+                <span class="ek-cip"><Ikon Ad="@EkIkon(ek.Mime, ek.Ad)" Boyut="14" /><span>@ek.Ad</span><small class="soluk">@S.Boyut(ek.Veri.LongLength)</small>
+                    <button style="border:0;background:none;color:inherit;padding:0 0 0 4px" @onclick="() => _bekleyenEkler.Remove(ek)" aria-label="Kaldır"><Ikon Ad="kapat" Boyut="14" /></button></span>
+            }
+        </div>
+    }
+    <div class="giris-kutu">
+        <button class="yuvarlak" @onclick="() => _ekAcik = true" disabled="@(_akis != null)" aria-label="Ek ekle"><Ikon Ad="ek" Boyut="20" /></button>
+        <textarea id="girdi" rows="1" placeholder="@(Ses.Kayitta ? "Dinleniyor… bitirmek için tekrar dokunun" : "Mesajınızı yazın…")" @bind="_girdi" @bind:event="oninput" @bind:after="Boyutla" maxlength="20000"></textarea>
+        @if (_akis != null)
+        {
+            <button class="yuvarlak birincil" @onclick="Durdur" aria-label="Durdur"><Ikon Ad="durdur" Boyut="18" Dolu="true" /></button>
+        }
+        else if (string.IsNullOrWhiteSpace(_girdi) && _bekleyenEkler.Count == 0)
+        {
+            <button class="yuvarlak @(Ses.Kayitta ? "kayit" : "")" @onclick="Mikrofon" disabled="@_sesIsleniyor" aria-label="Sesle yaz">
+                @if (_sesIsleniyor)
+                {
+                    <span class="donen"></span>
+                }
+                else
+                {
+                    <Ikon Ad="mikrofon" Boyut="20" />
+                }
+            </button>
+        }
+        else
+        {
+            <button class="yuvarlak birincil" @onclick="Gonder" disabled="@_gonderiliyor" aria-label="Gönder"><Ikon Ad="gonder" Boyut="20" /></button>
+        }
+    </div>
+</div>
+
+<EkSecici @bind-Acik="_ekAcik" Eklendi="EkEklendi" />
+<ModelSecici @bind-Acik="_modelAcik" Tur="_tur" Model="@_model" Secildi="ModelSecildi" />
+
+<AltSayfa @bind-Acik="_menuAcik" Baslik="Sohbet">
+    <button class="menu-satiri" @onclick="YenidenAdlandirAc" disabled="@(_sohbet == null)"><span class="simge"><Ikon Ad="kalem" Boyut="18" /></span><span class="buyu">Yeniden adlandır</span></button>
+    <button class="menu-satiri" @onclick="Sabitle" disabled="@(_sohbet == null || _sohbet.Id < 0)"><span class="simge"><Ikon Ad="sabitle" Boyut="18" /></span><span class="buyu">@(_sohbet?.Sabit == true ? "Sabitlemeyi kaldır" : "Üste sabitle")</span></button>
+    <button class="menu-satiri" @onclick="@(() => DisaAktar("md"))" disabled="@(_mesajlar.Count == 0)"><span class="simge"><Ikon Ad="belge" Boyut="18" /></span><span class="buyu">Markdown olarak dışa aktar</span></button>
+    <button class="menu-satiri" @onclick="@(() => DisaAktar("txt"))" disabled="@(_mesajlar.Count == 0)"><span class="simge"><Ikon Ad="metin" Boyut="18" /></span><span class="buyu">TXT olarak dışa aktar</span></button>
+    <button class="menu-satiri" @onclick="@(() => DisaAktar("json"))" disabled="@(_mesajlar.Count == 0)"><span class="simge"><Ikon Ad="kod" Boyut="18" /></span><span class="buyu">JSON olarak dışa aktar</span></button>
+    <button class="menu-satiri" @onclick="HafizaOnerisi" disabled="@(_mesajlar.Count < 2 || _oneriYukleniyor)"><span class="simge"><Ikon Ad="beyin" Boyut="18" /></span><span class="buyu">Hafıza önerisi çıkar @(_oneriYukleniyor ? "…" : "")</span></button>
+    <button class="menu-satiri" style="color:var(--tehlikeli)" @onclick="SohbetiSil" disabled="@(_sohbet == null)"><span class="simge"><Ikon Ad="cop" Boyut="18" /></span><span class="buyu">Sohbeti sil</span></button>
+</AltSayfa>
+
+<AltSayfa @bind-Acik="_adAcik" Baslik="Yeniden adlandır">
+    <input class="girdi" maxlength="80" @bind="_yeniAd" />
+    <button class="dugme tam" style="margin-top:12px" @onclick="AdKaydet">Kaydet</button>
+</AltSayfa>
+
+<AltSayfa @bind-Acik="_hafizaAcik" Baslik="Hafızaya ekle">
+    <p class="kucuk soluk">FURKAN AI'ın gelecekteki sohbetlerde hatırlamasını istediğiniz bilgiyi kısa ve net yazın. Parola, kimlik numarası gibi hassas bilgileri eklemeyin.</p>
+    <textarea class="girdi" maxlength="300" @bind="_hafizaMetni" placeholder="ör. Yanıtların kısa ve maddeler hâlinde olmasını tercih ediyorum."></textarea>
+    <button class="dugme tam" style="margin-top:12px" @onclick="HafizaKaydet">Hafızaya kaydet</button>
+</AltSayfa>
+
+<AltSayfa Acik="_oneriler != null" AcikChanged="v => { if (!v) _oneriler = null; }" Baslik="Hafıza önerileri">
+    @if (_oneriler is { Count: 0 })
+    {
+        <p class="soluk">Bu sohbette hatırlanacak yeni bir bilgi bulunamadı.</p>
+    }
+    else if (_oneriler != null)
+    {
+        <p class="kucuk soluk">Model bu bilgileri önerdi. Yalnızca onayladıklarınız kaydedilir.</p>
+        foreach (var o in _oneriler.ToList())
+        {
+            var oneri = o;
+            <div class="ayar-satiri">
+                <div class="metin"><b style="font-weight:600">@oneri</b></div>
+                <button class="dugme kucuk" @onclick="() => OneriOnayla(oneri)">Ekle</button>
+                <button class="dugme hayalet kucuk" @onclick="() => _oneriler.Remove(oneri)">Geç</button>
+            </div>
+        }
+    }
+</AltSayfa>
+
+@code {
+    [Parameter] public long Id { get; set; }
+    [SupplyParameterFromQuery(Name = "metin")] public string? MetinSorgu { get; set; }
+
+    private static readonly (string, string)[] Oneriler =
+    {
+        ("💡 Bana açıkla:", "Yapay zekâ modelleri nasıl öğrenir?"), ("✍️ Yaz:", "Yeni işim için kısa bir tanıtım metni"),
+        ("🧑‍💻 Kod:", "C# ile bir listeyi tersine çeviren fonksiyon"), ("🗓️ Planla:", "Bir haftalık sağlıklı kahvaltı listesi")
+    };
+
+    private Sohbet? _sohbet;
+    private List<Mesaj> _mesajlar = new();
+    private readonly List<EkIcerik> _bekleyenEkler = new();
+    private readonly Dictionary<long, (int Uzunluk, string Html)> _htmlOnbellek = new();
+    private Akis? _akis;
+    private SaglayiciTuru _tur;
+    private string _model = "", _girdi = "", _yeniAd = "", _hafizaMetni = "";
+    private string? _hazirDegil;
+    private List<string>? _oneriler;
+    private bool _yukleniyor = true, _ekAcik, _modelAcik, _menuAcik, _adAcik, _hafizaAcik, _gonderiliyor, _sesIsleniyor, _oneriYukleniyor, _ayarKaydet = true;
+    private long _yukluId = long.MinValue;
+
+    protected override void OnInitialized()
+    {
+        Servis.AkisDegisti += AkisGeldi;
+        Ses.Degisti += Yenile;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_yukluId == Id) return;
+        _yukluId = Id;
+        _yukleniyor = true;
+        _ayarKaydet = Ayar.GecmisiKaydet;
+        try
+        {
+            _sohbet = Id == 0 ? null : await Servis.SohbetGetir(Id);
+            if (Id != 0 && _sohbet == null) { Ui.Goster("Sohbet bulunamadı.", "hata"); Nav.NavigateTo("sohbetler", replace: true); return; }
+            _ayarKaydet = _sohbet?.Id > 0 || (_sohbet == null && Ayar.GecmisiKaydet);
+            _tur = _sohbet != null && Enum.TryParse<SaglayiciTuru>(_sohbet.Saglayici, out var t) ? t : Ayar.AktifSaglayici;
+            _model = _sohbet?.Model is { Length: > 0 } m ? m : Ayar.Model(_tur);
+            _mesajlar = _sohbet == null ? new() : await Servis.Mesajlar(_sohbet.Id);
+            _akis = _sohbet == null ? null : Servis.AktifAkis(_sohbet.Id);
+            _hazirDegil = await Sag.HazirDegilNedeni(_tur);
+            if (!string.IsNullOrEmpty(MetinSorgu)) _girdi = MetinSorgu;
+        }
+        catch (Exception e) { HataKaydi.Yaz("Sohbet yükleme", e); Ui.Goster(HataMesaji.Olustur(e), "hata"); }
+        finally { _yukleniyor = false; }
+        _ilkKaydirma = true;
+    }
+
+    private bool _ilkKaydirma;
+    protected override async Task OnAfterRenderAsync(bool ilk)
+    {
+        if (_ilkKaydirma && !_yukleniyor) { _ilkKaydirma = false; try { await JS.InvokeVoidAsync("fa.altaKaydir", true); await JS.InvokeVoidAsync("fa.boyutla", "girdi"); } catch { } }
+    }
+
+    private string Html(Mesaj m)
+    {
+        if (_htmlOnbellek.TryGetValue(m.Id, out var o) && o.Uzunluk == m.Metin.Length) return o.Html;
+        var h = MarkdownCizici.Html(m.Metin);
+        _htmlOnbellek[m.Id] = (m.Metin.Length, h);
+        return h;
+    }
+
+    private static string EkIkon(string mime, string ad) => DosyaOkuyucu.TurBul(mime, ad) switch
+    {
+        EkTuru.Gorsel => "resim", EkTuru.Pdf => "pdf", EkTuru.Docx => "belge", _ => "dosya"
+    };
+
+    private void AkisGeldi(long sohbetId) => _ = InvokeAsync(async () =>
+    {
+        if (_sohbet == null || sohbetId != _sohbet.Id) return;
+        var onceki = _akis;
+        _akis = Servis.AktifAkis(sohbetId);
+        if (_akis == null && onceki != null || _akis == null) _mesajlar = await Servis.Mesajlar(sohbetId);
+        StateHasChanged();
+        try { await JS.InvokeVoidAsync("fa.altaKaydir", false); } catch { }
+    });
+
+    private void Yenile() => _ = InvokeAsync(StateHasChanged);
+    private async Task Boyutla() { try { await JS.InvokeVoidAsync("fa.boyutla", "girdi"); } catch { } }
+    private void OneriSec(string metin) { _girdi = metin; _ = Boyutla(); }
+    private void EkEklendi(EkIcerik e)
+    {
+        if (_bekleyenEkler.Count >= 5) { Ui.Goster("Bir mesaja en fazla 5 ek ekleyebilirsiniz.", "hata"); return; }
+        _bekleyenEkler.Add(e);
+    }
+
+    private async Task Gonder()
+    {
+        var metin = _girdi.Trim();
+        if (metin.Length == 0 && _bekleyenEkler.Count == 0) return;
+        _hazirDegil = await Sag.HazirDegilNedeni(_tur);
+        if (_hazirDegil != null) { Ui.Goster(_hazirDegil + " Ayarlar › Sağlayıcılar.", "hata"); return; }
+        if (!Sag.BaglantiYeterli(_tur)) { Ui.Goster("İnternet bağlantısı yok. Bağlanınca tekrar deneyin; geçmiş sohbetleri çevrimdışı okuyabilirsiniz.", "hata"); return; }
+        if (_bekleyenEkler.Count > 0 && !await EkOnayi()) return;
+
+        _gonderiliyor = true;
+        try
+        {
+            var yeni = _sohbet == null;
+            if (_sohbet == null)
+            {
+                _sohbet = await Servis.YeniSohbet();
+                _sohbet.Saglayici = _tur.ToString(); _sohbet.Model = _model;
+                await Servis.SohbetGuncelle(_sohbet);
+            }
+            var ekler = _bekleyenEkler.ToList();
+            _girdi = ""; _bekleyenEkler.Clear();
+            try { await JS.InvokeVoidAsync("fa.temizle", "girdi"); } catch { }
+            await Servis.Gonder(_sohbet, metin, ekler);
+            // Yeni sohbet: kalıcı adrese geç (sayfa yeniden yüklenir, akış serviste sürer)
+            if (yeni) { Nav.NavigateTo("sohbet/" + _sohbet.Id, replace: true); return; }
+            _mesajlar = await Servis.Mesajlar(_sohbet.Id);
+            _akis = Servis.AktifAkis(_sohbet.Id);
+            StateHasChanged();
+            try { await JS.InvokeVoidAsync("fa.altaKaydir", true); } catch { }
+        }
+        catch (Exception e) { Ui.Goster(HataMesaji.Olustur(e), "hata"); }
+        finally { _gonderiliyor = false; }
+    }
+
+    /// <summary>Dosyalar sağlayıcıya gönderilmeden önce açık onay ve yetenek uyarısı.</summary>
+    private async Task<bool> EkOnayi()
+    {
+        var y = ModelKaydi.YetenekTahmin(_tur, _model);
+        var uyarilar = new List<string>();
+        if (_bekleyenEkler.Any(e => e.Tur == EkTuru.Gorsel) && !y.HasFlag(Yetenek.GorselAnaliz)) uyarilar.Add("• Seçili model görselleri desteklemiyor olabilir.");
+        if (_bekleyenEkler.Any(e => e.Tur == EkTuru.Pdf) && !y.HasFlag(Yetenek.Pdf)) uyarilar.Add("• PDF yalnızca çıkarılabilen metniyle gönderilecek.");
+        if (!Ayar.DosyaOnayiSor && uyarilar.Count == 0) return true;
+        var ad = ModelKaydi.Tanim(_tur).Ad;
+        var mesaj = $"{_bekleyenEkler.Count} dosya ({string.Join(", ", _bekleyenEkler.Select(e => e.Ad))}) analiz için {ad} sunucularına gönderilecek ve sağlayıcının veri politikasına tabi olacak.";
+        if (uyarilar.Count > 0) mesaj += "\n\n" + string.Join("\n", uyarilar);
+        return await Ui.Onayla("Dosyalar gönderilsin mi?", mesaj + "\n\n(Bu onayı Ayarlar › Sohbet'ten kapatabilirsiniz.)", "Gönder");
+    }
+
+    private void Durdur() { if (_sohbet != null) Servis.Durdur(_sohbet.Id); }
+    private async Task YenidenUret() { if (_sohbet == null) return; await Servis.YenidenUret(_sohbet); _akis = Servis.AktifAkis(_sohbet.Id); }
+
+    private async Task Kopyala(string metin) { await Clipboard.Default.SetTextAsync(metin); Ui.Goster("Kopyalandı 📋", "basari"); }
+
+    private async Task SesliOku(Mesaj m)
+    {
+        if (Ses.OkunanMesaj == m.Id) { Ses.Sustur(); return; }
+        try { await Ses.Oku(m.Metin, m.Id); }
+        catch (Exception e) { Ui.Goster("Sesli okunamadı: " + HataMesaji.Olustur(e), "hata"); }
+    }
+
+    private async Task Mikrofon()
+    {
+        try
+        {
+            if (Ayar.SttMotoru == "openai")
+            {
+                if (!Ses.Kayitta) { await Ses.KayitBaslat(); return; }
+                _sesIsleniyor = true;
+                var metin = await Ses.KayitBitirVeCevir();
+                _girdi = (_girdi + " " + metin).Trim();
+            }
+            else
+            {
+                var metin = await Ses.CihazlaDinle();
+                if (!string.IsNullOrWhiteSpace(metin)) _girdi = (_girdi + " " + metin).Trim();
+            }
+            await Boyutla();
+        }
+        catch (Exception e) { Ses.KayitIptal(); Ui.Goster(HataMesaji.Olustur(e), "hata"); }
+        finally { _sesIsleniyor = false; }
+    }
+
+    private async Task Duzenle(Mesaj m)
+    {
+        if (_akis != null) return;
+        var sonrakiler = _mesajlar.Where(x => x.Id >= m.Id).ToList();
+        if (sonrakiler.Count > 1 && !await Ui.Onayla("Mesaj düzenlensin mi?", "Bu mesaj ve sonrasındaki yanıtlar silinecek; metin düzenlemeniz için kutuya taşınacak.", "Düzenle")) return;
+        foreach (var x in sonrakiler) await Servis.MesajSil(x);
+        _girdi = m.Metin;
+        foreach (var k in m.Ekler) if (await SohbetDeposu.EkYukle(k) is { } e) _bekleyenEkler.Add(e);
+        _mesajlar = await Servis.Mesajlar(_sohbet!.Id);
+        await Boyutla();
+    }
+
+    private async Task MesajSil(Mesaj m)
+    {
+        if (!await Ui.Onayla("Mesaj silinsin mi?", "Bu yanıt sohbetten kaldırılacak.", "Sil", tehlikeli: true)) return;
+        await Servis.MesajSil(m);
+        _mesajlar = await Servis.Mesajlar(m.SohbetId);
+    }
+
+    private async Task ModelSecildi((SaglayiciTuru Tur, string Model) s)
+    {
+        _tur = s.Tur; _model = s.Model;
+        _hazirDegil = await Sag.HazirDegilNedeni(_tur);
+        if (_sohbet != null) { _sohbet.Saglayici = _tur.ToString(); _sohbet.Model = _model; await Servis.SohbetGuncelle(_sohbet); }
+    }
+
+    private void YenidenAdlandirAc() { _yeniAd = _sohbet?.Baslik ?? ""; _menuAcik = false; _adAcik = true; }
+    private async Task AdKaydet()
+    {
+        if (_sohbet == null || string.IsNullOrWhiteSpace(_yeniAd)) return;
+        _sohbet.Baslik = _yeniAd.Trim();
+        await Servis.SohbetGuncelle(_sohbet);
+        _adAcik = false;
+    }
+
+    private async Task Sabitle()
+    {
+        if (_sohbet == null) return;
+        _sohbet.Sabit = !_sohbet.Sabit;
+        await Servis.SohbetGuncelle(_sohbet);
+        _menuAcik = false;
+        Ui.Goster(_sohbet.Sabit ? "Sohbet üste sabitlendi 📌" : "Sabitleme kaldırıldı", "basari");
+    }
+
+    private async Task DisaAktar(string bicim)
+    {
+        if (_sohbet == null) return;
+        _menuAcik = false;
+        var d = new DisaSohbet(_sohbet.Baslik, _sohbet.Olusturma, ModelKaydi.Tanim(_tur).Ad, _model,
+            _mesajlar.Where(m => !m.Hata).Select(m => new DisaMesaj(m.Rol, m.Metin, m.Tarih, m.Model, m.Ekler.Select(e => e.Ad).ToList())).ToList());
+        var (icerik, uz, mime) = bicim switch
+        {
+            "txt" => (SohbetDisaAktarici.Txt(d), ".txt", "text/plain"),
+            "json" => (SohbetDisaAktarici.Json(new[] { d }), ".json", "application/json"),
+            _ => (SohbetDisaAktarici.Markdown(d), ".md", "text/markdown")
+        };
+        await Disari.Paylas(System.Text.Encoding.UTF8.GetBytes(icerik), "FURKANAI_" + S.DosyaAdi(_sohbet.Baslik, 40) + uz, mime);
+    }
+
+    private void HafizayaEkle(string metin) { _hafizaMetni = S.Kisalt(metin, 280); _hafizaAcik = true; }
+
+    private async Task HafizaKaydet()
+    {
+        if (HafizaYardimcisi.Dogrula(_hafizaMetni) is string h) { Ui.Goster(h, "hata"); return; }
+        await Depo.HafizaKaydet(new HafizaOgesi { Metin = _hafizaMetni.Trim(), Kaynak = "Mesajdan" });
+        _hafizaAcik = false;
+        Ui.Goster(Ayar.HafizaAktif ? "Hafızaya eklendi 🧠" : "Hafızaya eklendi (hafıza şu an kapalı)", "basari");
+    }
+
+    private async Task HafizaOnerisi()
+    {
+        if (_sohbet == null) return;
+        _oneriYukleniyor = true;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            _oneriler = await Servis.HafizaOnerileri(_sohbet, cts.Token);
+            _menuAcik = false;
+        }
+        catch (Exception e) { Ui.Goster("Öneri alınamadı: " + HataMesaji.Olustur(e), "hata"); }
+        finally { _oneriYukleniyor = false; }
+    }
+
+    private async Task OneriOnayla(string o)
+    {
+        await Depo.HafizaKaydet(new HafizaOgesi { Metin = o, Kaynak = "Öneri" });
+        _oneriler?.Remove(o);
+        Ui.Goster("Hafızaya eklendi 🧠", "basari");
+    }
+
+    private async Task SohbetiSil()
+    {
+        if (_sohbet == null) return;
+        if (!await Ui.Onayla("Sohbet silinsin mi?", "Tüm mesajlar ve ekler kalıcı olarak silinir.", "Sil", tehlikeli: true)) return;
+        Servis.Durdur(_sohbet.Id);
+        if (_sohbet.Id > 0) await Depo.SohbetSil(_sohbet.Id);
+        _menuAcik = false;
+        Nav.NavigateTo("sohbetler", replace: true);
+    }
+
+    public void Dispose()
+    {
+        Servis.AkisDegisti -= AkisGeldi;
+        Ses.Degisti -= Yenile;
+    }
+}

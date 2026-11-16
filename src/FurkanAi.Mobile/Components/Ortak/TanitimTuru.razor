@@ -1,0 +1,32 @@
+<div class="tanitim">
+    <div class="kart neon" @key="_adim">
+        <div class="ilerleme-n">
+            @for (var i = 0; i < Adimlar.Length; i++)
+            {
+                <i class="@(i <= _adim ? "aktif" : "")"></i>
+            }
+        </div>
+        <div class="buyuk-simge"><Ikon Ad="@Adimlar[_adim].Simge" Boyut="30" /></div>
+        <h3 style="font-size:19px;margin-bottom:6px">@Adimlar[_adim].Baslik</h3>
+        <p class="soluk" style="margin:0 0 18px">@Adimlar[_adim].Metin</p>
+        <div class="esnek arasi">
+            <button class="dugme hayalet kucuk" @onclick="Bitir">Geç</button>
+            <button class="dugme" @onclick="Ileri">@(_adim == Adimlar.Length - 1 ? "Başlayalım" : "İleri") <Ikon Ad="ileri" Boyut="16" /></button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback Bitti { get; set; }
+    private int _adim;
+    private static readonly (string Simge, string Baslik, string Metin)[] Adimlar =
+    {
+        ("yildizlar", "FURKAN AI'a hoş geldiniz", "OpenAI, Gemini, Claude veya kendi sunucunuzla çalışan kişisel yapay zekâ asistanınız. Hesap yok, reklam yok."),
+        ("anahtar", "Kendi API anahtarınız", "Ayarlar › Sağlayıcılar'dan anahtarınızı girin. Anahtarlar yalnızca bu cihazın güvenli deposunda (Android Keystore) saklanır."),
+        ("sohbet", "Akıllı sohbet", "Yanıtlar canlı akar; durdurabilir, yeniden üretebilir, kopyalayıp paylaşabilirsiniz. PDF, DOCX, TXT ve görsel ekleyebilirsiniz."),
+        ("ampul", "11 hazır araç", "Özetle, çevir, düzelt, e-posta yaz, kod açıkla… Tek dokunuşla doğru istemi hazırlar."),
+        ("beyin", "Denetimli hafıza", "Yalnızca sizin onayladığınız bilgiler hatırlanır. Hepsini görebilir, düzenleyebilir ve silebilirsiniz.")
+    };
+    private async Task Ileri() { if (_adim < Adimlar.Length - 1) _adim++; else await Bitir(); }
+    private Task Bitir() => Bitti.InvokeAsync();
+}

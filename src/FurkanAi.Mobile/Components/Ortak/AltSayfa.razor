@@ -1,0 +1,41 @@
+@implements IDisposable
+@if (Acik)
+{
+    <div class="perde" @onclick="Kapat"></div>
+    <div class="alt-sayfa" role="dialog" aria-modal="true">
+        <div class="tutamac"></div>
+        @if (Baslik != null)
+        {
+            <div class="esnek arasi" style="margin-bottom:14px">
+                <h3 style="margin:0;font-size:18px">@Baslik</h3>
+                <button class="ust-dugme" style="width:34px;height:34px" @onclick="Kapat" aria-label="Kapat"><Ikon Ad="kapat" Boyut="16" /></button>
+            </div>
+        }
+        @ChildContent
+    </div>
+}
+
+@code {
+    [Parameter] public bool Acik { get; set; }
+    [Parameter] public EventCallback<bool> AcikChanged { get; set; }
+    [Parameter] public string? Baslik { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    private bool _kayitli;
+    private Func<bool>? _geri;
+
+    protected override void OnParametersSet()
+    {
+        _geri ??= () => { _ = InvokeAsync(Kapat); return true; };
+        if (Acik && !_kayitli) { GeriTusu.Ekle(_geri); _kayitli = true; }
+        else if (!Acik && _kayitli) { GeriTusu.Cikar(_geri); _kayitli = false; }
+    }
+
+    private async Task Kapat()
+    {
+        if (_kayitli && _geri != null) { GeriTusu.Cikar(_geri); _kayitli = false; }
+        Acik = false;
+        await AcikChanged.InvokeAsync(false);
+    }
+
+    public void Dispose() { if (_geri != null) GeriTusu.Cikar(_geri); }
+}

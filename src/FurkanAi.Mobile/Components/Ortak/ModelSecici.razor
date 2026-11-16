@@ -1,0 +1,86 @@
+@inject Ayarlar Ayar
+@inject SaglayiciServisi Sag
+@inject NavigationManager Nav
+<AltSayfa Acik="Acik" AcikChanged="AcikChanged" Baslik="Sağlayıcı ve model">
+    <div class="cipler" style="flex-wrap:wrap;margin-bottom:12px">
+        @foreach (var t in ModelKaydi.Saglayicilar)
+        {
+            var tanim = t;
+            <button class="cip @(_tur == tanim.Tur ? "secili" : "")" @onclick="() => TurSec(tanim.Tur)">@tanim.Ad @(_hazir.GetValueOrDefault(tanim.Tur) ? "" : "⚠")</button>
+        }
+    </div>
+    @if (_neden != null)
+    {
+        <div class="uyari-kutu">@_neden <a href="saglayicilar" @onclick="() => AcikChanged.InvokeAsync(false)">Ayarla →</a></div>
+    }
+    <div class="kart" style="padding:4px 8px;max-height:44vh;overflow-y:auto">
+        @foreach (var m in _modeller)
+        {
+            var model = m;
+            <button class="menu-satiri" @onclick="() => Sec(model)">
+                <span class="simge"><Ikon Ad="@(model == _secili ? "tik" : "model")" Boyut="16" /></span>
+                <span class="buyu" style="min-width:0"><b class="kes" style="display:block">@model</b><small class="soluk">@YetenekMetni(model)</small></span>
+            </button>
+        }
+    </div>
+    <div class="esnek" style="gap:8px;margin-top:12px">
+        <input class="girdi buyu mono" placeholder="Model adını elle yazın" @bind="_elle" />
+        <button class="dugme kucuk" @onclick="() => Sec(_elle)" disabled="@string.IsNullOrWhiteSpace(_elle)">Kullan</button>
+    </div>
+    <p class="kucuk soluk">Model listesi zamanla değişir; güncel listeyi Ayarlar › Sağlayıcılar › "Modelleri getir" ile alabilirsiniz.</p>
+</AltSayfa>
+
+@code {
+    [Parameter] public bool Acik { get; set; }
+    [Parameter] public EventCallback<bool> AcikChanged { get; set; }
+    [Parameter] public SaglayiciTuru Tur { get; set; }
+    [Parameter] public string Model { get; set; } = "";
+    [Parameter] public EventCallback<(SaglayiciTuru Tur, string Model)> Secildi { get; set; }
+
+    private SaglayiciTuru _tur;
+    private string _secili = "", _elle = "";
+    private string? _neden;
+    private List<string> _modeller = new();
+    private readonly Dictionary<SaglayiciTuru, bool> _hazir = new();
+    private bool _oncekiAcik;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Acik && !_oncekiAcik)
+        {
+            _tur = Tur; _secili = Model;
+            foreach (var t in Enum.GetValues<SaglayiciTuru>()) _hazir[t] = await Sag.HazirDegilNedeni(t) == null;
+            await Listele();
+        }
+        _oncekiAcik = Acik;
+    }
+
+    private async Task TurSec(SaglayiciTuru t) { _tur = t; _secili = Ayar.Model(t); await Listele(); }
+
+    private async Task Listele()
+    {
+        _neden = await Sag.HazirDegilNedeni(_tur);
+        _modeller = ModelKaydi.SohbetModelleri(_tur).Select(m => m.Id)
+            .Concat(ModelKaydi.SohbeteUygun(_tur, Ayar.ModelListesi(_tur)))
+            .Append(Ayar.Model(_tur)).Where(m => !string.IsNullOrWhiteSpace(m)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private string YetenekMetni(string m)
+    {
+        var y = ModelKaydi.YetenekTahmin(_tur, m);
+        var l = new List<string> { "Metin" };
+        if (y.HasFlag(Yetenek.GorselAnaliz)) l.Add("Görsel");
+        if (y.HasFlag(Yetenek.Pdf)) l.Add("PDF");
+        return string.Join(" · ", l) + (ModelKaydi.Modeller.Any(x => x.Id == m) ? "" : " (tahmini)");
+    }
+
+    private async Task Sec(string model)
+    {
+        if (string.IsNullOrWhiteSpace(model)) return;
+        model = model.Trim();
+        Ayar.AktifSaglayici = _tur;
+        Ayar.ModelAyarla(_tur, model);
+        await Secildi.InvokeAsync((_tur, model));
+        await AcikChanged.InvokeAsync(false);
+    }
+}

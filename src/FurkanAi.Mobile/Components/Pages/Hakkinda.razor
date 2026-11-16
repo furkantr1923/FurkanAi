@@ -1,0 +1,26 @@
+@page "/hakkinda"
+
+<UstBar Baslik="Hakkında" Geri="true" />
+
+<div class="icerik">
+    <div class="ortala" style="padding:20px 0">
+        <img src="img/logo.svg" width="96" height="96" alt="" style="filter:drop-shadow(0 0 26px rgba(139,92,255,.6));animation:logoGir .7s both" />
+        <h2 style="margin-top:12px" class="parlak-metin">FURKAN AI</h2>
+        <p class="soluk">Sürüm @UygulamaBilgisi.Surum (@UygulamaBilgisi.Derleme)</p>
+        <p class="kucuk soluk">@UygulamaBilgisi.Cihaz</p>
+    </div>
+    <div class="kart">
+        <div class="kart-baslik">Proje</div>
+        <button class="menu-satiri" @onclick="@(() => Launcher.Default.OpenAsync("https://github.com/" + UygulamaBilgisi.GithubDeposu))"><span class="simge"><Ikon Ad="link" Boyut="18" /></span><span class="buyu">GitHub deposu</span></button>
+        <button class="menu-satiri" @onclick="@(() => Launcher.Default.OpenAsync("https://github.com/" + UygulamaBilgisi.GithubDeposu + "/issues"))"><span class="simge"><Ikon Ad="uyari" Boyut="18" /></span><span class="buyu">Hata bildir / öneri</span></button>
+        <a class="menu-satiri" href="gizlilik"><span class="simge"><Ikon Ad="kalkan" Boyut="18" /></span><span class="buyu">Gizlilik</span></a>
+    </div>
+    <div class="kart" style="margin-top:14px">
+        <div class="kart-baslik">Bileşenler ve markalar</div>
+        <p class="kucuk soluk" style="margin:0;line-height:1.7">
+            .NET MAUI (MIT) · sqlite-net-pcl (MIT) · SQLitePCLRaw (Apache-2.0). Markdown çevirici, SSE okuyucu ve sağlayıcı istemcileri bu projede yazılmıştır (harici SDK yok).
+            OpenAI, Gemini ve Claude ilgili şirketlerin ticari markalarıdır; bu uygulama onlarla bağlantılı değildir ve onlar tarafından onaylanmamıştır.
+        </p>
+    </div>
+    <p class="kucuk soluk ortala" style="margin:18px 0">© @DateTime.Now.Year Furkan Baykal · MIT Lisansı · Resmî olmayan bağımsız proje</p>
+</div>

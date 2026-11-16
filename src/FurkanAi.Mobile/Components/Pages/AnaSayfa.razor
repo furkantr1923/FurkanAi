@@ -1,0 +1,99 @@
+@page "/"
+@implements IDisposable
+@inject SohbetDeposu Depo
+@inject SaglayiciServisi Sag
+@inject Ayarlar Ayar
+@inject NavigationManager Nav
+
+<UstBar Baslik="FURKAN AI" AltBaslik="Kişisel yapay zekâ asistanınız" Logo="true">
+    <Sag>
+        <a class="ust-dugme" href="hafiza" aria-label="Hafıza"><Ikon Ad="beyin" /></a>
+    </Sag>
+</UstBar>
+
+<div class="icerik">
+    <section class="kahraman">
+        <i class="halka"></i><i class="halka iki"></i>
+        <h2>@Selam<br /><span class="parlak-metin">Ne öğrenmek istersiniz?</span></h2>
+        <div class="giris-kutu" style="margin-top:16px;box-shadow:none">
+            <textarea rows="1" placeholder="Bir şey sorun…" @bind="_soru" @bind:event="oninput" maxlength="4000"></textarea>
+            <button class="yuvarlak birincil" @onclick="Sor" disabled="@string.IsNullOrWhiteSpace(_soru)" aria-label="Sor"><Ikon Ad="gonder" Boyut="20" /></button>
+        </div>
+        <a class="model-cip @(_hazirDegil != null ? "uyari" : "")" href="saglayicilar" style="margin-top:12px">
+            <i></i><span class="kes">@ModelKaydi.Tanim(Ayar.AktifSaglayici).Ad · @Ayar.Model(Ayar.AktifSaglayici)</span>
+        </a>
+    </section>
+
+    @if (_hazirDegil != null)
+    {
+        <div class="uyari-kutu" style="margin-top:12px">
+            🔑 @_hazirDegil Başlamak için <a href="saglayicilar"><b>sağlayıcı ekleyin</b></a>. Anahtarınız yalnızca bu cihazda, şifreli depoda tutulur.
+        </div>
+    }
+
+    <div class="bolum">
+        <div class="esnek arasi"><h3>Hızlı araçlar</h3><a class="dugme hayalet kucuk" href="araclar">Tümü</a></div>
+        <div class="izgara-3" style="margin-top:10px">
+            @foreach (var a in AracKatalogu.Hepsi.Take(6))
+            {
+                <a class="kisayol" href="@($"arac/{a.Kod}")"><span class="simge"><Ikon Ad="@a.Ikon" Boyut="20" /></span>@a.Ad</a>
+            }
+        </div>
+    </div>
+
+    <div class="izgara-2" style="margin-top:14px">
+        <a class="eylem-karo" href="gorsel"><span class="simge"><Ikon Ad="resim" /></span><b>Görsel</b><small>Üret ve analiz et</small></a>
+        <a class="eylem-karo" href="hafiza"><span class="simge"><Ikon Ad="beyin" /></span><b>Hafıza</b><small>@_hafizaSayisi kayıtlı bilgi</small></a>
+    </div>
+
+    <div class="bolum">
+        <div class="esnek arasi"><h3>Son sohbetler</h3><a class="dugme hayalet kucuk" href="sohbetler">Tümü</a></div>
+        @if (_son == null)
+        {
+            <Iskelet Adet="3" />
+        }
+        else if (_son.Count == 0)
+        {
+            <Bos Simge="sohbet" Baslik="Henüz sohbet yok" Metin="Yukarıdan ilk sorunuzu sorun." />
+        }
+        else
+        {
+            <div class="kart" style="padding:4px 8px;margin-top:8px">
+                @foreach (var s in _son)
+                {
+                    <SohbetSatiri Sohbet="s" @key="s.Id" />
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<Sohbet>? _son;
+    private string _soru = "";
+    private string? _hazirDegil;
+    private int _hafizaSayisi;
+
+    private static string Selam => DateTime.Now.Hour switch { < 6 => "İyi geceler 🌙", < 12 => "Günaydın ☀️", < 18 => "İyi günler 👋", _ => "İyi akşamlar 🌆" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Depo.Degisti += Yenile;
+        await Yukle();
+    }
+
+    private async Task Yukle()
+    {
+        try
+        {
+            _son = (await Depo.Sohbetler(al: 5));
+            _hafizaSayisi = (await Depo.HafizaListesi()).Count(h => h.Aktif);
+            _hazirDegil = await Sag.HazirDegilNedeni(Ayar.AktifSaglayici);
+        }
+        catch (Exception e) { HataKaydi.Yaz("Ana sayfa", e); _son = new(); }
+    }
+
+    private void Yenile() => _ = InvokeAsync(async () => { await Yukle(); StateHasChanged(); });
+    private void Sor() { if (!string.IsNullOrWhiteSpace(_soru)) Nav.NavigateTo("sohbet/0?metin=" + Uri.EscapeDataString(_soru.Trim())); }
+    public void Dispose() => Depo.Degisti -= Yenile;
+}

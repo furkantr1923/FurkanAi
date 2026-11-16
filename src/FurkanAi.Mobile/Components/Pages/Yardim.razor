@@ -1,0 +1,65 @@
+@page "/yardim"
+@inject Ayarlar Ayar
+
+<UstBar Baslik="Yardım" Geri="true" />
+
+<div class="icerik">
+    <div class="cipler" style="margin-bottom:12px">
+        @foreach (var b in Bolumler)
+        {
+            var bolum = b;
+            <button class="cip @(_secili == bolum.Baslik ? "secili" : "")" @onclick="() => _secili = bolum.Baslik">@bolum.Simge @bolum.Baslik</button>
+        }
+    </div>
+    @foreach (var b in Bolumler.Where(x => x.Baslik == _secili))
+    {
+        <div class="kart">
+            @foreach (var (soru, cevap) in b.Maddeler)
+            {
+                <details style="padding:10px 0;border-bottom:1px solid var(--cam-kenar)">
+                    <summary style="font-weight:700;cursor:pointer">@soru</summary>
+                    <p class="soluk" style="margin:8px 0 0">@cevap</p>
+                </details>
+            }
+        </div>
+    }
+    <button class="dugme ikincil tam" style="margin-top:14px" @onclick="() => Ayar.TanitimGoruldu = false"><Ikon Ad="simsek" Boyut="18" /> Tanıtımı yeniden izle</button>
+</div>
+
+@code {
+    private string _secili = "Başlarken";
+    private sealed record Bolum(string Simge, string Baslik, (string, string)[] Maddeler);
+    private static readonly Bolum[] Bolumler =
+    {
+        new("🚀", "Başlarken", new[]
+        {
+            ("API anahtarını nereden alırım?", "OpenAI: platform.openai.com › API keys · Gemini: aistudio.google.com › Get API key (ücretsiz katman var) · Claude: console.anthropic.com › API Keys. Anahtarı Ayarlar › Sağlayıcılar'a yapıştırıp 'Bağlantı testi'ne basın."),
+            ("Ücretli mi?", "FURKAN AI ücretsizdir. Sağlayıcılar ise kendi fiyatlandırmalarına göre kullanım başına ücret alabilir; faturalandırma sağlayıcı hesabınızda görünür."),
+            ("Kendi bilgisayarımdaki modeli kullanabilir miyim?", "Evet. Ollama veya LM Studio'yu çalıştırın, 'OpenAI uyumlu' sağlayıcıda adresi http://BILGISAYAR_IP:11434/v1 gibi girin. Telefon ve bilgisayar aynı Wi-Fi ağında olmalı; Ollama için OLLAMA_HOST=0.0.0.0 ayarı gerekebilir.")
+        }),
+        new("💬", "Sohbet", new[]
+        {
+            ("Yanıtı durdurabilir miyim?", "Evet, yanıt yazılırken gönder düğmesi ■ durdur düğmesine dönüşür. Yarım kalan yanıt saklanır."),
+            ("Yeniden üret ne yapar?", "Son yanıtı silip aynı soruyu yeniden gönderir. Farklı bir model seçip yeniden üreterek karşılaştırabilirsiniz."),
+            ("Model neden eski bilgileri biliyor?", "Dil modellerinin bilgisi eğitim tarihine kadardır ve internette arama yapmazlar. Güncel bilgi gerektiren konularda yanıtları doğrulayın."),
+            ("Hangi dosyaları ekleyebilirim?", "Görseller, PDF, DOCX, TXT ve kod/metin dosyaları. PDF'ler OpenAI, Gemini ve Claude'a doğrudan gider; OpenAI uyumlu sunuculara yalnızca çıkarılan metin gider.")
+        }),
+        new("🧠", "Hafıza", new[]
+        {
+            ("Hafıza nasıl çalışır?", "Onayladığınız kısa bilgiler her sohbetin başında modele hatırlatılır. Sohbet geçmişi hafıza değildir; model kendi kendine hafızaya yazamaz."),
+            ("Hafızayı nasıl kapatırım?", "Hafıza ekranındaki anahtarla tamamen kapatabilir veya tek tek bilgileri devre dışı bırakabilirsiniz.")
+        }),
+        new("🎙️", "Ses", new[]
+        {
+            ("Mikrofon çalışmıyor", "'Cihaz' motoru telefonun konuşma tanıma servisini kullanır (genellikle Google uygulaması). Yoksa Ayarlar › Ses'ten 'OpenAI' seçin."),
+            ("Sesli okuma Türkçe değil", "Android Ayarlar › Metin okuma çıkışı bölümünden Türkçe ses paketini indirin veya OpenAI motorunu seçin.")
+        }),
+        new("⚠️", "Sorunlar", new[]
+        {
+            ("'API anahtarı geçersiz' hatası", "Anahtarı baştaki/sondaki boşluk olmadan yeniden yapıştırın; sağlayıcı panelinde anahtarın etkin olduğunu ve hesabınızda kredi bulunduğunu kontrol edin."),
+            ("'Kota aşıldı' (429) hatası", "Hesabınızın kullanım sınırına ulaşılmış veya çok hızlı istek gönderilmiş olabilir. Biraz bekleyin ya da sağlayıcı panelinden kotanızı kontrol edin."),
+            ("'Model bulunamadı' hatası", "Model adı değişmiş olabilir. Sağlayıcılar › 'Modelleri getir' ile güncel listeyi alın."),
+            ("PIN'imi unuttum", "Kilit ekranındaki 'PIN'imi unuttum' sohbetleri ve hafızayı silerek kilidi kaldırır. API anahtarları korunur.")
+        })
+    };
+}

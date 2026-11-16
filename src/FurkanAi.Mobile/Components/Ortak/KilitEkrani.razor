@@ -1,0 +1,72 @@
+@inject KilitServisi Kilit
+@inject SohbetDeposu Depo
+<div class="kilit">
+    <img src="img/logo.svg" width="72" height="72" alt="" style="animation:logoGir .6s both;filter:drop-shadow(0 0 20px rgba(139,92,255,.6))" />
+    <h2>FURKAN AI kilitli</h2>
+    <div class="pin-noktalar @(_hata ? "hata" : "")" @key="_hataNo">
+        @for (var i = 0; i < Kilit.PinUzunlugu; i++)
+        {
+            <i class="@(i < _pin.Length ? "dolu" : "")"></i>
+        }
+    </div>
+    <div class="kucuk @(_mesaj != null ? "" : "soluk")" style="min-height:20px;color:@(_mesaj != null ? "var(--tehlikeli)" : "inherit")">@(_mesaj ?? $"{Kilit.PinUzunlugu} haneli PIN'inizi girin")</div>
+    <div class="tus-takimi">
+        @foreach (var t in new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫" })
+        {
+            var tus = t;
+            if (tus == "")
+            {
+                <button class="bos-tus" disabled aria-hidden="true"></button>
+            }
+            else
+            {
+                <button @onclick="() => Bas(tus)">@tus</button>
+            }
+        }
+    </div>
+    @if (Kilit.BiyometrikKullanilabilir)
+    {
+        <button class="dugme ikincil" @onclick="Biyometrik"><Ikon Ad="parmakizi" Boyut="20" /> Parmak izi / yüz ile aç</button>
+    }
+    <button class="dugme hayalet kucuk" @onclick="() => _unuttum = true">PIN'imi unuttum</button>
+</div>
+
+<AltSayfa @bind-Acik="_unuttum" Baslik="PIN'i unuttum">
+    <p class="soluk kucuk">PIN güvenlik nedeniyle geri getirilemez. Kilidi kaldırmak için cihazdaki FURKAN AI sohbetleri ve hafıza silinir. API anahtarlarınız korunur. Önceden dışa aktardığınız sohbetleri tekrar içe aktarabilirsiniz.</p>
+    <button class="dugme tehlike tam" @onclick="Sifirla"><Ikon Ad="cop" Boyut="18" /> Verileri sil ve kilidi kaldır</button>
+</AltSayfa>
+
+@code {
+    private string _pin = "";
+    private string? _mesaj;
+    private bool _hata, _unuttum;
+    private int _hataNo;
+
+    private async Task Bas(string t)
+    {
+        _mesaj = null; _hata = false;
+        if (t == "⌫") { if (_pin.Length > 0) _pin = _pin[..^1]; return; }
+        if (_pin.Length >= Kilit.PinUzunlugu) return;
+        _pin += t;
+        if (_pin.Length == Kilit.PinUzunlugu)
+        {
+            var (dogru, mesaj) = await Kilit.Dogrula(_pin);
+            _pin = "";
+            if (!dogru) { _mesaj = mesaj; _hata = true; _hataNo++; }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool ilk)
+    {
+        if (ilk && Kilit.BiyometrikKullanilabilir) await Biyometrik();
+    }
+
+    private async Task Biyometrik() => await Kilit.BiyometrikAc();
+
+    private async Task Sifirla()
+    {
+        await Depo.HepsiniSil();
+        await Depo.HafizayiTemizle();
+        Kilit.PinKaldir();
+    }
+}

@@ -1,0 +1,109 @@
+@page "/hafiza"
+@implements IDisposable
+@inject SohbetDeposu Depo
+@inject Ayarlar Ayar
+@inject Arayuz Ui
+
+<UstBar Baslik="Hafıza" AltBaslik="Yalnızca onayladığınız bilgiler" Geri="true">
+    <Sag>
+        <button class="ust-dugme" @onclick="Yeni" aria-label="Ekle"><Ikon Ad="arti" /></button>
+    </Sag>
+</UstBar>
+
+<div class="icerik">
+    <div class="kart">
+        <div class="ayar-satiri"><div class="metin"><b>Hafızayı kullan</b><small>Açıkken etkin bilgiler her sohbetin sistem istemine eklenir</small></div><Anahtar Deger="Ayar.HafizaAktif" DegerChanged="v => Ayar.HafizaAktif = v" /></div>
+    </div>
+    <div class="bilgi-kutu" style="margin-top:12px">
+        🧠 Sohbet geçmişi ile hafıza ayrıdır. FURKAN AI kendi kendine hafızaya bir şey <b>yazamaz</b>: bilgiler yalnızca siz eklediğinizde veya bir öneriyi onayladığınızda kaydedilir.
+        Etkin bilgiler, kullandığınız sağlayıcıya her istekte gönderilir.
+    </div>
+
+    @if (_liste == null)
+    {
+        <Iskelet Adet="4" />
+    }
+    else if (_liste.Count == 0)
+    {
+        <Bos Simge="beyin" Baslik="Hafıza boş" Metin="Bir yanıtın altındaki 🧠 düğmesiyle veya sağ üstteki + ile bilgi ekleyin. Sohbet menüsündeki 'Hafıza önerisi çıkar' da öneri sunar.">
+            <button class="dugme" @onclick="Yeni"><Ikon Ad="arti" Boyut="18" /> Bilgi ekle</button>
+        </Bos>
+    }
+    else
+    {
+        <div class="kart" style="margin-top:12px;padding:4px 12px">
+            @foreach (var h in _liste)
+            {
+                var oge = h;
+                <div class="ayar-satiri" @key="oge.Id">
+                    <div class="metin" style="@(oge.Aktif ? "" : "opacity:.5")"><b style="font-weight:600">@oge.Metin</b><small>@oge.Kaynak · @oge.Olusturma.ToLocalTime().ToString("dd MMM yyyy", S.Tr)</small></div>
+                    <button class="ust-dugme" style="width:34px;height:34px" @onclick="() => Duzenle(oge)" aria-label="Düzenle"><Ikon Ad="kalem" Boyut="15" /></button>
+                    <Anahtar Deger="oge.Aktif" DegerChanged="v => Degistir(oge, v)" />
+                </div>
+            }
+        </div>
+        <div class="izgara-2" style="margin-top:12px">
+            <button class="dugme ikincil" @onclick="DisaAktar"><Ikon Ad="indir" Boyut="18" /> Dışa aktar</button>
+            <button class="dugme tehlike" @onclick="Temizle"><Ikon Ad="cop" Boyut="18" /> Hepsini sil</button>
+        </div>
+    }
+</div>
+
+<AltSayfa Acik="_duzenlenen != null" AcikChanged="v => { if (!v) _duzenlenen = null; }" Baslik="@(_duzenlenen?.Id == 0 ? "Bilgi ekle" : "Bilgiyi düzenle")">
+    @if (_duzenlenen != null)
+    {
+        <textarea class="girdi" maxlength="@HafizaYardimcisi.AzamiUzunluk" @bind="_metin" @bind:event="oninput" placeholder="ör. Adım Furkan; .NET MAUI ile mobil uygulama geliştiriyorum."></textarea>
+        <small class="soluk">@_metin.Length / @HafizaYardimcisi.AzamiUzunluk</small>
+        <div class="izgara-2" style="margin-top:12px">
+            @if (_duzenlenen.Id > 0)
+            {
+                <button class="dugme tehlike" @onclick="Sil">Sil</button>
+            }
+            <button class="dugme" @onclick="Kaydet">Kaydet</button>
+        </div>
+    }
+</AltSayfa>
+
+@code {
+    private List<HafizaOgesi>? _liste;
+    private HafizaOgesi? _duzenlenen;
+    private string _metin = "";
+
+    protected override async Task OnInitializedAsync() { Depo.Degisti += Yenile; await Yukle(); }
+    private async Task Yukle() => _liste = await Depo.HafizaListesi();
+    private void Yenile() => _ = InvokeAsync(async () => { await Yukle(); StateHasChanged(); });
+
+    private void Yeni()
+    {
+        if (_liste?.Count >= HafizaYardimcisi.AzamiOge) { Ui.Goster($"En fazla {HafizaYardimcisi.AzamiOge} bilgi saklanabilir.", "hata"); return; }
+        _duzenlenen = new HafizaOgesi(); _metin = "";
+    }
+    private void Duzenle(HafizaOgesi h) { _duzenlenen = h; _metin = h.Metin; }
+
+    private async Task Kaydet()
+    {
+        if (_duzenlenen == null) return;
+        if (HafizaYardimcisi.Dogrula(_metin) is string h) { Ui.Goster(h, "hata"); return; }
+        _duzenlenen.Metin = _metin.Trim();
+        await Depo.HafizaKaydet(_duzenlenen);
+        _duzenlenen = null;
+        Ui.Goster("Hafıza güncellendi 🧠", "basari");
+    }
+
+    private async Task Sil() { if (_duzenlenen == null) return; await Depo.HafizaSil(_duzenlenen.Id); _duzenlenen = null; }
+    private async Task Degistir(HafizaOgesi h, bool aktif) { h.Aktif = aktif; await Depo.HafizaKaydet(h); }
+
+    private async Task Temizle()
+    {
+        if (!await Ui.Onayla("Hafıza silinsin mi?", "Tüm kayıtlı bilgiler kalıcı olarak silinir. Sohbetleriniz etkilenmez.", "Hepsini sil", tehlikeli: true)) return;
+        await Depo.HafizayiTemizle();
+    }
+
+    private async Task DisaAktar()
+    {
+        var metin = string.Join("\n", (_liste ?? new()).Select(h => $"- {(h.Aktif ? "" : "(kapalı) ")}{h.Metin}"));
+        await Disari.Paylas(System.Text.Encoding.UTF8.GetBytes("FURKAN AI — Hafıza\n\n" + metin + "\n"), $"FURKANAI_Hafiza_{DateTime.Now:yyyyMMdd}.txt", "text/plain");
+    }
+
+    public void Dispose() => Depo.Degisti -= Yenile;
+}

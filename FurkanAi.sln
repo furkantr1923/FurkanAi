@@ -1,0 +1,45 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36000.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FurkanAi.Mobile", "src\FurkanAi.Mobile\FurkanAi.Mobile.csproj", "{DADF203F-3E8D-5161-9B37-8BEE77EEED50}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FurkanAi.Core", "src\FurkanAi.Core\FurkanAi.Core.csproj", "{C41FD6C3-39B0-546A-AAAE-AFA6B451A2CD}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FurkanAi.Tests", "tests\FurkanAi.Tests\FurkanAi.Tests.csproj", "{2DAD63B1-007E-5D55-B09F-A9E8D6E10775}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{133B4652-0560-5092-9ECE-CB5A22B715D2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{693C4A36-79C6-5058-9BBE-BDDE9BE094C2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DADF203F-3E8D-5161-9B37-8BEE77EEED50}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DADF203F-3E8D-5161-9B37-8BEE77EEED50}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DADF203F-3E8D-5161-9B37-8BEE77EEED50}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{DADF203F-3E8D-5161-9B37-8BEE77EEED50}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DADF203F-3E8D-5161-9B37-8BEE77EEED50}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DADF203F-3E8D-5161-9B37-8BEE77EEED50}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{C41FD6C3-39B0-546A-AAAE-AFA6B451A2CD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C41FD6C3-39B0-546A-AAAE-AFA6B451A2CD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C41FD6C3-39B0-546A-AAAE-AFA6B451A2CD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C41FD6C3-39B0-546A-AAAE-AFA6B451A2CD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2DAD63B1-007E-5D55-B09F-A9E8D6E10775}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DAD63B1-007E-5D55-B09F-A9E8D6E10775}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DAD63B1-007E-5D55-B09F-A9E8D6E10775}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DAD63B1-007E-5D55-B09F-A9E8D6E10775}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{DADF203F-3E8D-5161-9B37-8BEE77EEED50} = {133B4652-0560-5092-9ECE-CB5A22B715D2}
+		{C41FD6C3-39B0-546A-AAAE-AFA6B451A2CD} = {133B4652-0560-5092-9ECE-CB5A22B715D2}
+		{2DAD63B1-007E-5D55-B09F-A9E8D6E10775} = {693C4A36-79C6-5058-9BBE-BDDE9BE094C2}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,28 @@
+@inject IJSRuntime JS
+<header class="ust">
+    @if (Geri)
+    {
+        <button class="ust-dugme" @onclick="GeriGit" aria-label="Geri"><Ikon Ad="geri" /></button>
+    }
+    else if (Logo)
+    {
+        <img src="img/logo.svg" width="40" height="40" alt="" style="border-radius:12px;flex:none;filter:drop-shadow(0 0 10px rgba(139,92,255,.5))" />
+    }
+    <div class="buyu" style="min-width:0">
+        <h1 class="kes">@Baslik</h1>
+        @if (AltBaslik != null)
+        {
+            <div class="alt-baslik kes">@AltBaslik</div>
+        }
+    </div>
+    @Sag
+</header>
+
+@code {
+    [Parameter] public string Baslik { get; set; } = "";
+    [Parameter] public string? AltBaslik { get; set; }
+    [Parameter] public bool Geri { get; set; }
+    [Parameter] public bool Logo { get; set; }
+    [Parameter] public RenderFragment? Sag { get; set; }
+    private void GeriGit() { if (GeriTusu.SayfaGeri?.Invoke() != true) _ = JS.InvokeVoidAsync("fa.geri"); }
+}

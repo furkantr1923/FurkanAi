@@ -1,0 +1,168 @@
+@page "/saglayicilar"
+@inject SaglayiciServisi Sag
+@inject Ayarlar Ayar
+@inject Arayuz Ui
+
+<UstBar Baslik="Sağlayıcılar" AltBaslik="API anahtarları ve modeller" Geri="true" />
+
+<div class="icerik">
+    <div class="bilgi-kutu">
+        🔐 Anahtarlar yalnızca bu cihazın güvenli deposunda (Android Keystore ile şifreli) saklanır. Koda, günlüklere, dışa aktarımlara veya GitHub'a <b>asla</b> yazılmaz.
+        Anahtarınızı kimseyle (bu uygulamanın geliştiricisi dahil) paylaşmayın.
+    </div>
+
+    <div class="cipler" style="flex-wrap:wrap;margin:12px 0">
+        @foreach (var t in ModelKaydi.Saglayicilar)
+        {
+            var tanim = t;
+            <button class="cip @(_tur == tanim.Tur ? "secili" : "")" @onclick="() => Sec(tanim.Tur)">@(Ayar.AktifSaglayici == tanim.Tur ? "★ " : "")@tanim.Ad @(_hazir.GetValueOrDefault(tanim.Tur) ? "✓" : "")</button>
+        }
+    </div>
+
+    <div class="kart">
+        <div class="kart-baslik">@_tanim.Ad</div>
+        <p class="kucuk soluk" style="margin-top:0">@_tanim.Aciklama</p>
+
+        @if (_tanim.AnahtarGerekli || _tur == SaglayiciTuru.OpenAIUyumlu)
+        {
+            <div class="alan"><label>API anahtarı @(_anahtarVar ? "✅ kayıtlı" : _tanim.AnahtarGerekli ? "" : "(isteğe bağlı)")</label>
+                <div class="esnek" style="gap:8px">
+                    <input class="girdi buyu mono" type="password" autocomplete="off" @bind="_anahtar" placeholder="@(_anahtarVar ? "•••••••• (değiştirmek için yeni anahtar girin)" : "Anahtarı yapıştırın")" />
+                    <button class="dugme kucuk" @onclick="AnahtarKaydet" disabled="@string.IsNullOrWhiteSpace(_anahtar)">Kaydet</button>
+                </div>
+                @if (_tanim.AnahtarSayfasi.Length > 0)
+                {
+                    <small class="soluk">Anahtar almak için: <a href="@_tanim.AnahtarSayfasi" target="_blank" rel="noopener">@_tanim.AnahtarSayfasi</a></small>
+                }
+                @if (_anahtarVar)
+                {
+                    <button class="dugme hayalet kucuk" style="color:var(--tehlikeli);padding-left:0" @onclick="AnahtarSil">Anahtarı sil</button>
+                }
+            </div>
+        }
+
+        <div class="alan"><label>Sunucu adresi @(_tur == SaglayiciTuru.OpenAIUyumlu ? "(zorunlu)" : "(isteğe bağlı, boş = resmî adres)")</label>
+            <input class="girdi mono" type="url" inputmode="url" @bind="_taban" placeholder="@(_tur == SaglayiciTuru.OpenAIUyumlu ? "http://192.168.1.20:11434/v1  ·  https://openrouter.ai/api/v1" : _tanim.VarsayilanTabanUrl)" />
+            @if (_tur == SaglayiciTuru.OpenAIUyumlu)
+            {
+                <small class="soluk">Ollama: http://BILGISAYAR_IP:11434/v1 · LM Studio: http://BILGISAYAR_IP:1234/v1 · Telefon ve bilgisayar aynı ağda olmalı.</small>
+            }
+        </div>
+
+        <div class="alan"><label>Varsayılan model</label>
+            <input class="girdi mono" list="modeller" @bind="_model" />
+            <datalist id="modeller">
+                @foreach (var m in _modeller)
+                {
+                    <option value="@m"></option>
+                }
+            </datalist>
+            <small class="soluk">Listede yoksa model adını elle yazabilirsiniz.</small>
+        </div>
+
+        <div class="izgara-2">
+            <button class="dugme ikincil" disabled="@_islemde" @onclick="ModelleriGetir"><Ikon Ad="indir" Boyut="16" /> Modelleri getir</button>
+            <button class="dugme ikincil" disabled="@_islemde" @onclick="Test"><Ikon Ad="dunya" Boyut="16" /> Bağlantı testi</button>
+        </div>
+        @if (_sonuc != null)
+        {
+            <div class="@(_sonucBasarili ? "basari-kutu" : "hata-kutu")" style="margin:12px 0 0;white-space:pre-line">@_sonuc</div>
+        }
+        <button class="dugme tam" style="margin-top:12px" @onclick="Kaydet"><Ikon Ad="tik" Boyut="18" /> Kaydet ve varsayılan yap</button>
+    </div>
+
+    <p class="kucuk soluk" style="margin:14px 4px">Ücretlendirme ve kullanım sınırları sağlayıcı hesabınıza bağlıdır. FURKAN AI hiçbir ücret almaz ve isteklerinizi kendi sunucusundan geçirmez; uygulama doğrudan sağlayıcıya bağlanır.</p>
+</div>
+
+@code {
+    private SaglayiciTuru _tur;
+    private SaglayiciTanimi _tanim = ModelKaydi.Saglayicilar[0];
+    private string _anahtar = "", _taban = "", _model = "";
+    private string? _sonuc;
+    private bool _anahtarVar, _islemde, _sonucBasarili;
+    private List<string> _modeller = new();
+    private readonly Dictionary<SaglayiciTuru, bool> _hazir = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        foreach (var t in Enum.GetValues<SaglayiciTuru>()) _hazir[t] = await Sag.HazirDegilNedeni(t) == null;
+        await Sec(Ayar.AktifSaglayici);
+    }
+
+    private async Task Sec(SaglayiciTuru t)
+    {
+        _tur = t; _tanim = ModelKaydi.Tanim(t);
+        _anahtar = ""; _sonuc = null;
+        _anahtarVar = await Sag.AnahtarVar(t);
+        _taban = Ayar.TabanUrl(t) ?? "";
+        _model = Ayar.Model(t);
+        _modeller = ModelKaydi.SohbetModelleri(t).Select(m => m.Id).Concat(ModelKaydi.SohbeteUygun(t, Ayar.ModelListesi(t))).Distinct().ToList();
+    }
+
+    private async Task AnahtarKaydet()
+    {
+        var a = _anahtar.Trim();
+        if (a.Length < 8 || a.Any(char.IsWhiteSpace)) { Ui.Goster("Geçerli bir API anahtarı girin (boşluk içermemeli).", "hata"); return; }
+        await Sag.AnahtarKaydet(_tur, a);
+        _anahtar = ""; _anahtarVar = true;
+        _hazir[_tur] = await Sag.HazirDegilNedeni(_tur) == null;
+        Ui.Goster("Anahtar güvenli depoya kaydedildi 🔐", "basari");
+    }
+
+    private async Task AnahtarSil()
+    {
+        if (!await Ui.Onayla("Anahtar silinsin mi?", $"{_tanim.Ad} anahtarı bu cihazdan silinecek.", "Sil", tehlikeli: true)) return;
+        await Sag.AnahtarKaydet(_tur, null);
+        _anahtarVar = false; _hazir[_tur] = false;
+    }
+
+    private bool AyarlariUygula()
+    {
+        if (_taban.Length > 0 && !Uri.TryCreate(_taban.Trim(), UriKind.Absolute, out var u)) { Ui.Goster("Sunucu adresi geçersiz (http:// veya https:// ile başlamalı).", "hata"); return false; }
+        if (_taban.Trim().StartsWith("http://", StringComparison.OrdinalIgnoreCase) && _tur != SaglayiciTuru.OpenAIUyumlu) { Ui.Goster("Bu sağlayıcı için yalnızca https adresi kullanılabilir.", "hata"); return false; }
+        Ayar.TabanUrlAyarla(_tur, _taban);
+        if (!string.IsNullOrWhiteSpace(_model)) Ayar.ModelAyarla(_tur, _model);
+        return true;
+    }
+
+    private async Task Kaydet()
+    {
+        if (!AyarlariUygula()) return;
+        Ayar.AktifSaglayici = _tur;
+        _hazir[_tur] = await Sag.HazirDegilNedeni(_tur) == null;
+        Ui.Goster($"{_tanim.Ad} varsayılan sağlayıcı yapıldı ✅", "basari");
+    }
+
+    private async Task ModelleriGetir()
+    {
+        if (!AyarlariUygula()) return;
+        _islemde = true; _sonuc = null;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+            var l = await (await Sag.Istemci(_tur)).ModelleriGetir(cts.Token);
+            var uygun = ModelKaydi.SohbeteUygun(_tur, l);
+            Ayar.ModelListesiAyarla(_tur, l);
+            _modeller = ModelKaydi.SohbetModelleri(_tur).Select(m => m.Id).Concat(uygun).Distinct().ToList();
+            _sonuc = $"{l.Count} model bulundu, {uygun.Count} tanesi sohbete uygun. Model kutusuna dokunarak seçebilirsiniz.";
+            _sonucBasarili = true;
+        }
+        catch (Exception e) { _sonuc = HataMesaji.Olustur(e); _sonucBasarili = false; }
+        finally { _islemde = false; }
+    }
+
+    private async Task Test()
+    {
+        if (!AyarlariUygula()) return;
+        _islemde = true; _sonuc = null;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+            _sonuc = await (await Sag.Istemci(_tur)).BaglantiTesti(cts.Token);
+            _sonucBasarili = true;
+            _hazir[_tur] = await Sag.HazirDegilNedeni(_tur) == null;
+        }
+        catch (Exception e) { _sonuc = HataMesaji.Olustur(e); _sonucBasarili = false; }
+        finally { _islemde = false; }
+    }
+}

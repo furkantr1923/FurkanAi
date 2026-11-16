@@ -1,0 +1,164 @@
+@page "/ayarlar"
+@inject Ayarlar Ayar
+@inject Arayuz Ui
+@inject SohbetDeposu Depo
+@inject SesServisi Ses
+@inject Veritabani Vt
+
+<UstBar Baslik="Ayarlar" AltBaslik="@($"FURKAN AI {UygulamaBilgisi.Surum}")" />
+
+<div class="icerik">
+    <div class="kart">
+        <a class="menu-satiri" href="saglayicilar"><span class="simge"><Ikon Ad="anahtar" Boyut="18" /></span><span class="buyu"><b>Sağlayıcılar ve modeller</b><br /><small class="soluk">@ModelKaydi.Tanim(Ayar.AktifSaglayici).Ad · @Ayar.Model(Ayar.AktifSaglayici)</small></span><Ikon Ad="ileri" Boyut="16" /></a>
+        <a class="menu-satiri" href="hafiza"><span class="simge"><Ikon Ad="beyin" Boyut="18" /></span><span class="buyu"><b>Hafıza</b><br /><small class="soluk">Onaylı bilgiler · @(Ayar.HafizaAktif ? "açık" : "kapalı")</small></span><Ikon Ad="ileri" Boyut="16" /></a>
+        <a class="menu-satiri" href="guvenlik"><span class="simge"><Ikon Ad="kilit" Boyut="18" /></span><span class="buyu"><b>Güvenlik ve kilit</b><br /><small class="soluk">PIN, parmak izi, otomatik kilit</small></span><Ikon Ad="ileri" Boyut="16" /></a>
+    </div>
+
+    <h3 style="margin:20px 4px 8px">🎨 Görünüm</h3>
+    <div class="kart">
+        <div class="alan"><label>Tema</label><Sekmeler Secenekler="Temalar" Secili="@Ayar.Tema" SeciliChanged="v => Ayar.Tema = v" /></div>
+        <div class="alan"><label>Vurgu rengi</label>
+            <div class="esnek" style="gap:10px">
+                @foreach (var (kod, renk) in Vurgular)
+                {
+                    var k = kod;
+                    <button style="width:40px;height:40px;border-radius:14px;background:@renk;border:3px solid @(Ayar.Vurgu == k ? "var(--metin-1)" : "transparent")" @onclick="() => Ayar.Vurgu = k" aria-label="@k"></button>
+                }
+            </div>
+        </div>
+        <div class="alan"><label>Yazı boyutu</label><Sekmeler Secenekler="YaziBoyutlari" Secili="@Ayar.YaziBoyutu" SeciliChanged="v => Ayar.YaziBoyutu = v" /></div>
+        <div class="ayar-satiri"><div class="metin"><b>Animasyonları azalt</b></div><Anahtar Deger="Ayar.AzAnimasyon" DegerChanged="v => Ayar.AzAnimasyon = v" /></div>
+    </div>
+
+    <h3 style="margin:20px 4px 8px">💬 Sohbet</h3>
+    <div class="kart">
+        <div class="alan"><label>Yanıt dili</label>
+            <select class="girdi" value="@Ayar.YanitDili" @onchange="@(e => Ayar.YanitDili = e.Value?.ToString() ?? "otomatik")">
+                <option value="otomatik">Otomatik (sorduğunuz dil)</option><option value="Türkçe">Türkçe</option><option value="İngilizce">English</option><option value="Almanca">Deutsch</option><option value="Arapça">العربية</option>
+            </select>
+        </div>
+        <div class="alan"><label>Kişisel talimatlar (her sohbete eklenir)</label>
+            <textarea class="girdi" maxlength="1500" placeholder="ör. Bana 'Furkan' diye hitap et. Kısa ve maddeli yanıtları tercih ederim." value="@Ayar.KisiselIstem" @onchange="@(e => Ayar.KisiselIstem = e.Value?.ToString() ?? "")"></textarea>
+        </div>
+        <div class="alan"><label>Yaratıcılık (sıcaklık): @(Ayar.Sicaklik < 0 ? "model varsayılanı" : Ayar.Sicaklik.ToString("0.0", S.Tr))</label>
+            <input type="range" min="-0.1" max="1.5" step="0.1" value="@(Ayar.Sicaklik.ToString("0.0", S.Inv))" @onchange="SicaklikDegisti" />
+            <small class="soluk">En solda: sağlayıcının varsayılanı (bazı akıl yürütme modelleri sıcaklık ayarını kabul etmez).</small>
+        </div>
+        <div class="alan"><label>En uzun yanıt (token): @Ayar.AzamiToken</label>
+            <input type="range" min="512" max="16384" step="512" value="@Ayar.AzamiToken" @onchange="e => Ayar.AzamiToken = int.Parse(e.Value!.ToString()!)" />
+        </div>
+        <div class="alan"><label>Bağlam: son @Ayar.BaglamMesajSayisi mesaj gönderilir</label>
+            <input type="range" min="4" max="60" step="2" value="@Ayar.BaglamMesajSayisi" @onchange="e => Ayar.BaglamMesajSayisi = int.Parse(e.Value!.ToString()!)" />
+            <small class="soluk">Daha fazla bağlam = daha tutarlı ama daha maliyetli yanıtlar.</small>
+        </div>
+        <div class="ayar-satiri"><div class="metin"><b>Sohbet geçmişini kaydet</b><small>Kapalıyken yeni sohbetler yalnızca bellekte tutulur</small></div><Anahtar Deger="Ayar.GecmisiKaydet" DegerChanged="v => Ayar.GecmisiKaydet = v" /></div>
+        <div class="ayar-satiri"><div class="metin"><b>Dosya göndermeden önce sor</b><small>Ekler sağlayıcıya gitmeden açık onay</small></div><Anahtar Deger="Ayar.DosyaOnayiSor" DegerChanged="v => Ayar.DosyaOnayiSor = v" /></div>
+    </div>
+
+    <h3 style="margin:20px 4px 8px">🎙️ Ses</h3>
+    <div class="kart">
+        <div class="alan"><label>Sesten yazıya</label><Sekmeler Secenekler="SesMotorlari" Secili="@Ayar.SttMotoru" SeciliChanged="v => Ayar.SttMotoru = v" /></div>
+        <div class="alan"><label>Yazıdan sese</label><Sekmeler Secenekler="SesMotorlari" Secili="@Ayar.TtsMotoru" SeciliChanged="v => Ayar.TtsMotoru = v" /></div>
+        <small class="soluk">Cihaz: ücretsiz, Android'in kendi motoru (dil paketine bağlı). OpenAI: daha doğal ses ve tanıma; OpenAI anahtarı gerekir ve ses OpenAI'ye gönderilir.</small>
+        <div class="alan" style="margin-top:12px"><label>Ses dili</label>
+            <select class="girdi" value="@Ayar.SesDili" @onchange="@(e => Ayar.SesDili = e.Value?.ToString() ?? "tr-TR")">
+                <option value="tr-TR">Türkçe</option><option value="en-US">English (US)</option><option value="de-DE">Deutsch</option><option value="ar-SA">العربية</option>
+            </select>
+        </div>
+        @if (Ayar.TtsMotoru == "openai")
+        {
+            <div class="alan"><label>OpenAI sesi</label>
+                <select class="girdi" value="@Ayar.OpenAiSes" @onchange="@(e => Ayar.OpenAiSes = e.Value?.ToString() ?? "alloy")">
+                    @foreach (var v in new[] { "alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer" })
+                    {
+                        <option value="@v">@v</option>
+                    }
+                </select>
+            </div>
+        }
+        <div class="ayar-satiri"><div class="metin"><b>Yanıtları otomatik sesli oku</b></div><Anahtar Deger="Ayar.OtomatikSesliOku" DegerChanged="v => Ayar.OtomatikSesliOku = v" /></div>
+        <button class="dugme hayalet kucuk" @onclick="SesTesti">▶ Sesi dene</button>
+    </div>
+
+    <h3 style="margin:20px 4px 8px">🔔 Bildirimler</h3>
+    <div class="kart">
+        <div class="ayar-satiri"><div class="metin"><b>Yanıt hazır bildirimi</b><small>Uygulama arka plandayken uzun yanıt bitince</small></div><Anahtar Deger="Ayar.YanitBildirimi" DegerChanged="BildirimDegisti" /></div>
+    </div>
+
+    <h3 style="margin:20px 4px 8px">💾 Veri</h3>
+    <div class="kart">
+        <div class="ayar-satiri"><div class="metin"><b>Kullanılan alan</b><small>Sohbetler, ekler ve görseller</small></div><span class="rozet">@S.Boyut(Vt.Boyut())</span></div>
+        <a class="menu-satiri" href="sohbetler"><span class="simge"><Ikon Ad="indir" Boyut="18" /></span><span class="buyu">Sohbetleri dışa/içe aktar</span><Ikon Ad="ileri" Boyut="16" /></a>
+        <button class="menu-satiri" style="color:var(--tehlikeli)" @onclick="HepsiniSil"><span class="simge"><Ikon Ad="cop" Boyut="18" /></span><span class="buyu">Tüm verileri sil (sohbet, hafıza, görsel)</span></button>
+    </div>
+
+    <h3 style="margin:20px 4px 8px">ℹ️ Uygulama</h3>
+    <div class="kart">
+        <a class="menu-satiri" href="yardim"><span class="simge"><Ikon Ad="yardim" Boyut="18" /></span><span class="buyu">Yardım ve sık sorulanlar</span><Ikon Ad="ileri" Boyut="16" /></a>
+        <a class="menu-satiri" href="gizlilik"><span class="simge"><Ikon Ad="kalkan" Boyut="18" /></span><span class="buyu">Gizlilik</span><Ikon Ad="ileri" Boyut="16" /></a>
+        <a class="menu-satiri" href="hakkinda"><span class="simge"><Ikon Ad="bilgi" Boyut="18" /></span><span class="buyu">Hakkında</span><Ikon Ad="ileri" Boyut="16" /></a>
+        <button class="menu-satiri" @onclick="() => _gunlukAcik = true"><span class="simge"><Ikon Ad="not" Boyut="18" /></span><span class="buyu">Hata günlüğü</span></button>
+        <button class="menu-satiri" @onclick="AyarlariSifirla"><span class="simge"><Ikon Ad="guncelle" Boyut="18" /></span><span class="buyu">Ayarları varsayılana döndür</span></button>
+        <button class="menu-satiri" @onclick="() => Ayar.TanitimGoruldu = false"><span class="simge"><Ikon Ad="simsek" Boyut="18" /></span><span class="buyu">Tanıtımı yeniden göster</span></button>
+    </div>
+</div>
+
+<AltSayfa @bind-Acik="_gunlukAcik" Baslik="Hata günlüğü">
+    <p class="kucuk soluk">Yalnızca bu cihazda tutulur. Sohbet içerikleri ve API anahtarları yazılmaz.</p>
+    <pre class="mono kucuk" style="max-height:300px;overflow:auto;white-space:pre-wrap;background:var(--cam-2);padding:10px;border-radius:12px">@(_gunlukAcik ? (HataKaydi.Oku() is { Length: > 0 } g ? g : "Kayıtlı hata yok 🎉") : "")</pre>
+    <div class="izgara-2">
+        <button class="dugme ikincil" @onclick="GunlukPaylas">Paylaş</button>
+        <button class="dugme tehlike" @onclick="GunlukTemizle">Temizle</button>
+    </div>
+</AltSayfa>
+
+@code {
+    private static readonly IReadOnlyList<(string, string)> Temalar = new[] { ("koyu", "🌙 Koyu"), ("acik", "☀️ Açık"), ("sistem", "Sistem") };
+    private static readonly IReadOnlyList<(string, string)> YaziBoyutlari = new[] { ("kucuk", "Küçük"), ("normal", "Normal"), ("buyuk", "Büyük") };
+    private static readonly IReadOnlyList<(string, string)> SesMotorlari = new[] { ("cihaz", "Cihaz"), ("openai", "OpenAI") };
+    private static readonly (string Kod, string Renk)[] Vurgular = { ("mor", "#8B5CFF"), ("siyan", "#22E4FF"), ("pembe", "#FF3DCB"), ("yesil", "#3DFFA8") };
+    private bool _gunlukAcik;
+
+    private void SicaklikDegisti(ChangeEventArgs e)
+    {
+        var v = double.Parse(e.Value?.ToString() ?? "-1", S.Inv);
+        Ayar.Sicaklik = v < 0 ? -1 : Math.Round(v, 1);
+    }
+
+    private async Task BildirimDegisti(bool v)
+    {
+        if (v && DeviceInfo.Version.Major >= 13 && await Permissions.RequestAsync<Permissions.PostNotifications>() != PermissionStatus.Granted)
+            Ui.Goster("Bildirim izni verilmedi; Android ayarlarından açabilirsiniz.", "bilgi");
+        Ayar.YanitBildirimi = v;
+    }
+
+    private async Task SesTesti()
+    {
+        try { await Ses.Oku("Merhaba, ben FURKAN AI. Size nasıl yardımcı olabilirim?"); }
+        catch (Exception e) { Ui.Goster(HataMesaji.Olustur(e), "hata"); }
+    }
+
+    private async Task HepsiniSil()
+    {
+        if (!await Ui.Onayla("Tüm veriler silinsin mi?", "Sohbetler, ekler, hafıza ve üretilen görseller kalıcı olarak silinir. API anahtarları ve ayarlar korunur.", "Hepsini sil", tehlikeli: true)) return;
+        await Depo.HepsiniSil();
+        await Depo.HafizayiTemizle();
+        foreach (var g in await Depo.Gorseller()) await Depo.GorselSil(g);
+        Ui.Goster("Tüm veriler silindi", "basari");
+    }
+
+    private async Task AyarlariSifirla()
+    {
+        if (!await Ui.Onayla("Ayarlar sıfırlansın mı?", "Görünüm, sohbet ve ses ayarları varsayılana döner. Sağlayıcı bağlantıları, API anahtarları, PIN ve verileriniz korunur.", "Sıfırla")) return;
+        Ayar.Sifirla();
+        Ui.Goster("Ayarlar sıfırlandı", "basari");
+    }
+
+    private void GunlukTemizle() { HataKaydi.Temizle(); _gunlukAcik = false; Ui.Goster("Günlük temizlendi", "basari"); }
+
+    private async Task GunlukPaylas()
+    {
+        var metin = $"FURKAN AI {UygulamaBilgisi.Surum} ({UygulamaBilgisi.Derleme})\n{UygulamaBilgisi.Cihaz}\n\n{HataKaydi.Oku()}";
+        await Disari.MetinPaylas(metin, "FURKAN AI hata günlüğü");
+    }
+}

@@ -1,0 +1,19 @@
+<div class="bos belir">
+    <div class="simge"><Ikon Ad="@Simge" Boyut="32" /></div>
+    <b>@Baslik</b>
+    @if (Metin != null)
+    {
+        <div class="kucuk">@Metin</div>
+    }
+    @if (ChildContent != null)
+    {
+        <div style="margin-top:16px">@ChildContent</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Simge { get; set; } = "bilgi";
+    [Parameter] public string Baslik { get; set; } = "";
+    [Parameter] public string? Metin { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

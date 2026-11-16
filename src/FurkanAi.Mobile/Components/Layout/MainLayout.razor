@@ -1,0 +1,187 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject Ayarlar Ayar
+@inject Arayuz Ui
+@inject KilitServisi Kilit
+@inject UygulamaYasamDongusu Yasam
+
+@if (!_hazir)
+{
+    <div class="acilis">
+        <div class="logo-kap"><img src="img/logo.svg" alt="" /></div>
+        <div class="marka">FURKAN AI</div>
+        <div class="slogan">Sor · Üret · Öğren</div>
+    </div>
+}
+else if (Kilit.Kilitli)
+{
+    <KilitEkrani />
+}
+else
+{
+    <div class="kabuk @(_sohbetModu ? "sohbet-modu" : "")">
+        <ErrorBoundary @ref="_sinir">
+            <ChildContent>
+                <main class="sayfa" @key="_sayfaAnahtari">@Body</main>
+            </ChildContent>
+            <ErrorContent Context="hata">
+                <div class="icerik" style="padding-top:60px">
+                    <Bos Simge="uyari" Baslik="Bu ekranda bir sorun oluştu" Metin="@HataMesaji.Olustur(hata)">
+                        <div class="esnek" style="gap:8px;justify-content:center">
+                            <button class="dugme" @onclick="YenidenDene"><Ikon Ad="guncelle" Boyut="18" /> Yeniden dene</button>
+                            <button class="dugme ikincil" @onclick="AnaSayfayaDon">Ana sayfa</button>
+                        </div>
+                    </Bos>
+                </div>
+            </ErrorContent>
+        </ErrorBoundary>
+    </div>
+
+    if (!_sohbetModu)
+    {
+        <nav class="alt-menu" aria-label="Ana menü">
+            <NavLink href="" Match="NavLinkMatch.All"><Ikon Ad="ev" /><span>Ana sayfa</span></NavLink>
+            <NavLink href="sohbetler"><Ikon Ad="sohbetler" /><span>Sohbetler</span></NavLink>
+            <NavLink href="sohbet/0" class="merkez"><span class="orb"><Ikon Ad="arti" Boyut="26" /></span><span>Yeni</span></NavLink>
+            <NavLink href="araclar"><Ikon Ad="ampul" /><span>Araçlar</span></NavLink>
+            <NavLink href="ayarlar"><Ikon Ad="ayar" /><span>Ayarlar</span></NavLink>
+        </nav>
+    }
+
+    if (!Ayar.TanitimGoruldu)
+    {
+        <TanitimTuru Bitti="TanitimBitti" />
+    }
+}
+
+@if (_onay != null)
+{
+    <div class="perde" @onclick="() => OnayCevap(false)"></div>
+    <div class="diyalog" role="alertdialog">
+        <h3 style="font-size:18px;margin-bottom:8px">@_onay.Baslik</h3>
+        <p class="soluk" style="margin:0 0 18px;white-space:pre-line">@_onay.Mesaj</p>
+        <div class="esnek" style="gap:8px;justify-content:flex-end">
+            <button class="dugme ikincil" @onclick="() => OnayCevap(false)">@_onay.Hayir</button>
+            <button class="dugme @(_onay.Tehlikeli ? "tehlike" : "")" @onclick="() => OnayCevap(true)">@_onay.Evet</button>
+        </div>
+    </div>
+}
+
+<div class="toastlar" aria-live="polite">
+    @foreach (var t in _toastlar)
+    {
+        <div class="toast @t.Tur" @key="t.Id" @onclick="() => ToastKapat(t.Id)">
+            <Ikon Ad="@(t.Tur == "hata" ? "uyari" : t.Tur == "basari" ? "tik" : "bilgi")" Boyut="18" />
+            <span style="white-space:pre-line">@t.Mesaj</span>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _hazir, _sohbetModu;
+    private ErrorBoundary? _sinir;
+    private readonly List<Arayuz.Toast> _toastlar = new();
+    private Arayuz.Onay? _onay;
+    private string _sayfaAnahtari = "";
+    private DotNetObjectReference<MainLayout>? _ref;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Ui.ToastGeldi += ToastEkle;
+        Ui.OnayIstendi += OnayGoster;
+        Kilit.Degisti += Yenile;
+        Ayar.Degisti += TemaUygula;
+        Nav.LocationChanged += KonumDegisti;
+        Yonlendirme.Istendi += Git;
+        GeriTusu.SayfaGeri = SayfaGeri;
+        YolGuncelle(Nav.Uri);
+        await Yasam.Baslat();
+        _hazir = true;
+        if (Yonlendirme.BekleyeniAl() is string bekleyen) Git(bekleyen);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool ilk)
+    {
+        if (!ilk) return;
+        _ref = DotNetObjectReference.Create(this);
+        try { await JS.InvokeVoidAsync("fa.kur", _ref); } catch (JSDisconnectedException) { }
+        await TemaUygulaAsync();
+    }
+
+    /// <summary>Markdown kod bloklarındaki "Kopyala" düğmesi (JS) buraya gelir.</summary>
+    [JSInvokable]
+    public async Task Kopyala(string metin)
+    {
+        await Clipboard.Default.SetTextAsync(metin);
+        Ui.Goster("Kod kopyalandı 📋", "basari");
+    }
+
+    private void YolGuncelle(string uri)
+    {
+        var yol = Nav.ToBaseRelativePath(uri).Split('?')[0];
+        _sayfaAnahtari = yol;
+        _sohbetModu = yol.StartsWith("sohbet/", StringComparison.Ordinal);
+    }
+
+    private void TemaUygula() => _ = InvokeAsync(async () => { await TemaUygulaAsync(); StateHasChanged(); });
+
+    private async Task TemaUygulaAsync()
+    {
+        var tema = Ayar.Tema;
+        if (tema == "sistem") tema = Application.Current?.RequestedTheme == AppTheme.Light ? "acik" : "koyu";
+        try { await JS.InvokeVoidAsync("fa.tema", tema, Ayar.Vurgu, Ayar.AzAnimasyon, Ayar.YaziBoyutu); } catch (JSDisconnectedException) { }
+    }
+
+    private void KonumDegisti(object? s, LocationChangedEventArgs e)
+    {
+        YolGuncelle(e.Location);
+        _sinir?.Recover();
+        StateHasChanged();
+    }
+
+    private bool SayfaGeri()
+    {
+        var yol = Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0];
+        if (yol == "") return false; // ana sayfada geri → uygulamadan çık
+        _ = InvokeAsync(async () => { try { await JS.InvokeVoidAsync("fa.geri"); } catch { Nav.NavigateTo(""); } });
+        return true;
+    }
+
+    private void Git(string yol) => _ = InvokeAsync(() => Nav.NavigateTo(yol));
+
+    private void ToastEkle(Arayuz.Toast t) => _ = InvokeAsync(async () =>
+    {
+        _toastlar.Add(t);
+        if (_toastlar.Count > 3) _toastlar.RemoveAt(0);
+        StateHasChanged();
+        await Task.Delay(t.Tur == "hata" ? 5000 : 2800);
+        ToastKapat(t.Id);
+    });
+
+    private void ToastKapat(Guid id) { if (_toastlar.RemoveAll(x => x.Id == id) > 0) StateHasChanged(); }
+
+    private void OnayGoster(Arayuz.Onay o) => _ = InvokeAsync(() => { _onay = o; GeriTusu.Ekle(OnayGeri); StateHasChanged(); });
+    private bool OnayGeri() { _ = InvokeAsync(() => OnayCevap(false)); return true; }
+    private void OnayCevap(bool cevap)
+    {
+        var o = _onay; _onay = null;
+        GeriTusu.Cikar(OnayGeri);
+        o?.Sonuc.TrySetResult(cevap);
+        StateHasChanged();
+    }
+
+    private void Yenile() => _ = InvokeAsync(StateHasChanged);
+    private void TanitimBitti() { Ayar.TanitimGoruldu = true; }
+    private void YenidenDene() => _sinir?.Recover();
+    private void AnaSayfayaDon() { _sinir?.Recover(); Nav.NavigateTo(""); }
+
+    public void Dispose()
+    {
+        Ui.ToastGeldi -= ToastEkle; Ui.OnayIstendi -= OnayGoster; Kilit.Degisti -= Yenile; Ayar.Degisti -= TemaUygula;
+        Nav.LocationChanged -= KonumDegisti; Yonlendirme.Istendi -= Git;
+        if (GeriTusu.SayfaGeri == SayfaGeri) GeriTusu.SayfaGeri = null;
+        _ref?.Dispose();
+    }
+}

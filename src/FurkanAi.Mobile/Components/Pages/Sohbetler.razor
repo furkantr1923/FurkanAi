@@ -1,0 +1,135 @@
+@page "/sohbetler"
+@implements IDisposable
+@inject SohbetDeposu Depo
+@inject Arayuz Ui
+
+<UstBar Baslik="Sohbetler" AltBaslik="@($"{_liste?.Count ?? 0} sohbet")">
+    <Sag>
+        <button class="ust-dugme" @onclick="() => _menuAcik = true" aria-label="Menü"><Ikon Ad="filtre" /></button>
+    </Sag>
+</UstBar>
+
+<div class="icerik">
+    <div style="position:relative;margin-bottom:12px">
+        <input class="girdi" placeholder="Sohbetlerde ara (başlık ve mesajlar)" @bind="_arama" @bind:event="oninput" @bind:after="AramaDegisti" style="padding-left:40px" />
+        <span style="position:absolute;left:13px;top:13px;opacity:.6"><Ikon Ad="ara" Boyut="18" /></span>
+    </div>
+
+    @if (_liste == null)
+    {
+        <Iskelet Adet="6" />
+    }
+    else if (_liste.Count == 0)
+    {
+        <Bos Simge="sohbet" Baslik="@(string.IsNullOrWhiteSpace(_arama) ? "Henüz sohbet yok" : "Sonuç bulunamadı")" Metin="@(string.IsNullOrWhiteSpace(_arama) ? "Yeni bir sohbet başlatın." : "Farklı bir kelime deneyin.")">
+            <a class="dugme" href="sohbet/0"><Ikon Ad="arti" Boyut="18" /> Yeni sohbet</a>
+        </Bos>
+    }
+    else
+    {
+        <div class="kart" style="padding:4px 8px">
+            @foreach (var s in _liste)
+            {
+                var sohbet = s;
+                <SohbetSatiri Sohbet="sohbet" @key="sohbet.Id">
+                    <Sag>
+                        <button class="ust-dugme" style="width:34px;height:34px" @onclick="() => Sec(sohbet)" aria-label="Seçenekler"><Ikon Ad="filtre" Boyut="16" /></button>
+                    </Sag>
+                </SohbetSatiri>
+            }
+        </div>
+    }
+</div>
+
+<AltSayfa Acik="_secili != null" AcikChanged="v => { if (!v) _secili = null; }" Baslik="@(_secili?.Baslik ?? "")">
+    <div class="alan"><label>Ad</label><input class="girdi" maxlength="80" @bind="_yeniAd" /></div>
+    <button class="menu-satiri" @onclick="AdKaydet"><span class="simge"><Ikon Ad="kalem" Boyut="18" /></span><span class="buyu">Adı kaydet</span></button>
+    <button class="menu-satiri" @onclick="Sabitle"><span class="simge"><Ikon Ad="sabitle" Boyut="18" /></span><span class="buyu">@(_secili?.Sabit == true ? "Sabitlemeyi kaldır" : "Üste sabitle")</span></button>
+    <button class="menu-satiri" style="color:var(--tehlikeli)" @onclick="Sil"><span class="simge"><Ikon Ad="cop" Boyut="18" /></span><span class="buyu">Sil</span></button>
+</AltSayfa>
+
+<AltSayfa @bind-Acik="_menuAcik" Baslik="Tüm sohbetler">
+    <button class="menu-satiri" @onclick="HepsiniDisaAktar"><span class="simge"><Ikon Ad="indir" Boyut="18" /></span><span class="buyu">Tümünü JSON olarak dışa aktar</span></button>
+    <button class="menu-satiri" @onclick="IceAktar"><span class="simge"><Ikon Ad="dosya" Boyut="18" /></span><span class="buyu">JSON'dan içe aktar</span></button>
+    <button class="menu-satiri" style="color:var(--tehlikeli)" @onclick="HepsiniSil"><span class="simge"><Ikon Ad="cop" Boyut="18" /></span><span class="buyu">Tüm sohbetleri sil</span></button>
+    <p class="kucuk soluk">Dışa aktarım sohbet metinlerini içerir; ek dosyaların içeriği ve API anahtarları dahil edilmez.</p>
+</AltSayfa>
+
+@code {
+    private List<Sohbet>? _liste;
+    private string _arama = "", _yeniAd = "";
+    private Sohbet? _secili;
+    private bool _menuAcik;
+    private CancellationTokenSource? _gecikme;
+
+    protected override async Task OnInitializedAsync() { Depo.Degisti += Yenile; await Yukle(); }
+    private async Task Yukle() { try { _liste = await Depo.Sohbetler(_arama, 500); } catch (Exception e) { HataKaydi.Yaz("Sohbet listesi", e); _liste = new(); } }
+    private void Yenile() => _ = InvokeAsync(async () => { await Yukle(); StateHasChanged(); });
+
+    private async Task AramaDegisti()
+    {
+        _gecikme?.Cancel();
+        _gecikme = new CancellationTokenSource();
+        try { await Task.Delay(300, _gecikme.Token); await Yukle(); } catch (TaskCanceledException) { }
+    }
+
+    private void Sec(Sohbet s) { _secili = s; _yeniAd = s.Baslik; }
+
+    private async Task AdKaydet()
+    {
+        if (_secili == null || string.IsNullOrWhiteSpace(_yeniAd)) return;
+        _secili.Baslik = _yeniAd.Trim();
+        await Depo.SohbetKaydet(_secili);
+        _secili = null;
+    }
+
+    private async Task Sabitle() { if (_secili == null) return; _secili.Sabit = !_secili.Sabit; await Depo.SohbetKaydet(_secili); _secili = null; }
+
+    private async Task Sil()
+    {
+        if (_secili == null) return;
+        var s = _secili;
+        if (!await Ui.Onayla("Sohbet silinsin mi?", $"\"{s.Baslik}\" ve tüm mesajları kalıcı olarak silinir.", "Sil", tehlikeli: true)) return;
+        await Depo.SohbetSil(s.Id);
+        _secili = null;
+        Ui.Goster("Sohbet silindi", "basari");
+    }
+
+    private async Task HepsiniDisaAktar()
+    {
+        var hepsi = await Depo.Sohbetler(al: 100000);
+        if (hepsi.Count == 0) { Ui.Goster("Dışa aktarılacak sohbet yok.", "bilgi"); return; }
+        var l = new List<DisaSohbet>();
+        foreach (var s in hepsi) l.Add(await Depo.DisaHazirla(s));
+        var json = SohbetDisaAktarici.Json(l);
+        var ok = await Disari.Kaydet(System.Text.Encoding.UTF8.GetBytes(json), $"FURKANAI_Sohbetler_{DateTime.Now:yyyyMMdd_HHmm}.json", "application/json");
+        _menuAcik = false;
+        if (ok) Ui.Goster($"{l.Count} sohbet dışa aktarıldı ✅", "basari");
+    }
+
+    private async Task IceAktar()
+    {
+        try
+        {
+            var f = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "FURKAN AI sohbet dosyası (.json)" });
+            if (f == null) return;
+            await using var st = await f.OpenReadAsync();
+            using var r = new StreamReader(st);
+            var l = SohbetDisaAktarici.JsonOku(await r.ReadToEndAsync());
+            var n = await Depo.IceAktar(l);
+            _menuAcik = false;
+            Ui.Goster($"{n} sohbet içe aktarıldı ✅", "basari");
+        }
+        catch (Exception e) { Ui.Goster("İçe aktarılamadı: " + HataMesaji.Olustur(e), "hata"); }
+    }
+
+    private async Task HepsiniSil()
+    {
+        if (!await Ui.Onayla("Tüm sohbetler silinsin mi?", "Bütün sohbetler, mesajlar ve ekler kalıcı olarak silinir. Hafıza ve ayarlar korunur.", "Hepsini sil", tehlikeli: true)) return;
+        await Depo.HepsiniSil();
+        _menuAcik = false;
+        Ui.Goster("Tüm sohbetler silindi", "basari");
+    }
+
+    public void Dispose() => Depo.Degisti -= Yenile;
+}

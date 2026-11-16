@@ -1,0 +1,11 @@
+<label class="anahtar">
+    <input type="checkbox" checked="@Deger" @onchange="Degisti" disabled="@Pasif" />
+    <span></span>
+</label>
+
+@code {
+    [Parameter] public bool Deger { get; set; }
+    [Parameter] public EventCallback<bool> DegerChanged { get; set; }
+    [Parameter] public bool Pasif { get; set; }
+    private async Task Degisti(ChangeEventArgs e) { Deger = e.Value is bool b && b; await DegerChanged.InvokeAsync(Deger); }
+}

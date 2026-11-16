@@ -1,0 +1,80 @@
+@page "/guvenlik"
+@inject Ayarlar Ayar
+@inject KilitServisi Kilit
+@inject Arayuz Ui
+
+<UstBar Baslik="Güvenlik ve kilit" Geri="true" />
+
+<div class="icerik">
+    <div class="bilgi-kutu">🔐 Kilit, telefonunuzu başkası kullandığında sohbetlerinizi korur. API anahtarları zaten şifreli güvenli depodadır.</div>
+    <div class="kart" style="margin-top:14px">
+        <div class="kart-baslik">Uygulama kilidi</div>
+        <div class="ayar-satiri"><div class="metin"><b>PIN kilidi</b><small>@(Ayar.PinAktif ? $"{Kilit.PinUzunlugu} haneli PIN etkin" : "Uygulama açılırken PIN sorar")</small></div><Anahtar Deger="Ayar.PinAktif" DegerChanged="PinDegisti" /></div>
+        @if (Ayar.PinAktif)
+        {
+            <div class="alan" style="margin-top:12px"><label>Otomatik kilit</label>
+                <select class="girdi" value="@Ayar.OtoKilitDakika" @onchange="e => Ayar.OtoKilitDakika = int.Parse(e.Value!.ToString()!)">
+                    <option value="0">Arka plana geçince hemen</option><option value="1">1 dakika sonra</option><option value="5">5 dakika sonra</option><option value="15">15 dakika sonra</option>
+                </select>
+            </div>
+            if (AndroidBiyometri.Destekleniyor())
+            {
+                <div class="ayar-satiri"><div class="metin"><b>Parmak izi / yüz ile aç</b><small>PIN her zaman yedek olarak kalır</small></div><Anahtar Deger="Ayar.BiyometrikAktif" DegerChanged="BiyometriDegisti" /></div>
+            }
+            else
+            {
+                <p class="kucuk soluk">Bu cihazda kayıtlı biyometrik doğrulama bulunamadı.</p>
+            }
+            <div class="izgara-2">
+                <button class="dugme ikincil" @onclick="() => PinBaslat()">PIN'i değiştir</button>
+                <button class="dugme ikincil" @onclick="Kilit.SimdiKilitle">Şimdi kilitle</button>
+            </div>
+        }
+        <p class="kucuk soluk">PIN, tuzlanmış PBKDF2 özeti olarak güvenli depoda saklanır; düz metin hiçbir yerde tutulmaz. 5 hatalı denemeden sonra bekleme süresi uygulanır.</p>
+    </div>
+</div>
+
+<AltSayfa Acik="_pinAdim > 0" AcikChanged="v => { if (!v) _pinAdim = 0; }" Baslik="@(_pinAdim == 1 ? "Yeni PIN" : "PIN'i tekrar girin")">
+    <p class="kucuk soluk">4–8 haneli bir PIN girin. Tüm haneleri aynı olan PIN (ör. 1111) kabul edilmez.</p>
+    <input class="girdi mono" style="font-size:22px;letter-spacing:.4em;text-align:center" type="password" inputmode="numeric" maxlength="8" @bind="_pinGirdi" @key="_pinAdim" />
+    @if (_pinHata != null)
+    {
+        <div class="hata-kutu" style="margin-top:10px">@_pinHata</div>
+    }
+    <button class="dugme tam" style="margin-top:12px" @onclick="PinIleri">@(_pinAdim == 1 ? "Devam" : "PIN'i kaydet")</button>
+</AltSayfa>
+
+@code {
+    private string _pinGirdi = "", _ilkPin = "";
+    private string? _pinHata;
+    private int _pinAdim;
+
+    private async Task BiyometriDegisti(bool v)
+    {
+        if (v && !await AndroidBiyometri.Dogrula("Biyometrik kilidi etkinleştir", "Doğrulamak için parmağınızı okutun")) { Ui.Goster("Doğrulama başarısız; biyometrik kilit açılmadı.", "hata"); return; }
+        Ayar.BiyometrikAktif = v;
+    }
+
+    private async Task PinDegisti(bool v)
+    {
+        if (v) { PinBaslat(); return; }
+        if (await Ui.Onayla("PIN kilidi kapatılsın mı?", "Uygulama artık PIN sormayacak.", "Kapat")) { Kilit.PinKaldir(); Ui.Goster("PIN kilidi kapatıldı", "basari"); }
+    }
+
+    private void PinBaslat() { _pinAdim = 1; _pinGirdi = _ilkPin = ""; _pinHata = null; }
+
+    private async Task PinIleri()
+    {
+        _pinHata = null;
+        if (_pinAdim == 1)
+        {
+            if (!KilitServisi.Gecerli(_pinGirdi)) { _pinHata = "PIN 4–8 rakam olmalı ve tüm haneleri aynı olmamalı."; return; }
+            _ilkPin = _pinGirdi; _pinGirdi = ""; _pinAdim = 2;
+            return;
+        }
+        if (_pinGirdi != _ilkPin) { _pinHata = "PIN'ler eşleşmiyor. Baştan deneyin."; _pinAdim = 1; _pinGirdi = _ilkPin = ""; return; }
+        await Kilit.PinAyarla(_pinGirdi);
+        _pinAdim = 0; _pinGirdi = _ilkPin = "";
+        Ui.Goster("PIN kilidi etkin 🔒", "basari");
+    }
+}
